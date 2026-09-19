@@ -1,0 +1,10 @@
+{
+  "python.pythonPath": "C:\\Users\\xv367\\anaconda3\\envs\\vrgame\\python.exe",
+  "python.defaultInterpreterPath": "C:\\Users\\xv367\\anaconda3\\envs\\vrgame\\python.exe",
+  "python.terminal.activateEnvironment": true,
+  "terminal.integrated.defaultProfile.windows": "Command Prompt",
+  "terminal.integrated.env.windows": {
+    "PATH": "C:\\Users\\xv367\\anaconda3\\envs\\vrgame;C:\\Users\\xv367\\anaconda3\\envs\\vrgame\\Scripts;C:\\Users\\xv367\\anaconda3\\envs\\vrgame\\Library\\bin;${env:PATH}"
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:system"
+}
