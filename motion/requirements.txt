@@ -1,8 +1,10 @@
-# motion/ 동작 인식 프로그램에 필요한 부품 (2026-09-29, Python 3.11.6, Windows 11에서 확인)
-# 설치:  py -3.11 -m venv .venv
-#        .venv\Scripts\python.exe -m pip install -r requirements.txt
+# motion/ 동작 인식 프로그램에 필요한 부품 (2026-10-04, Python 3.11, Windows 11에서 확인)
+# 설치는 setup 파일(윈도우 setup.bat / 맥 setup.command)이 이 목록으로 한다.
 # 버전을 고정해 두었다. 팀원 컴퓨터에서도 똑같이 설치되게 하려는 것이다.
 # opencv-python 은 따로 설치하지 않는다(opencv-contrib-python 과 충돌).
+# mediapipe 는 1.0.1 이 아니라 1.0.0 을 쓴다: 1.0.1 은 맥에서 몸 인식을 시작하자마자 강제 종료된다
+#   (공식 이슈 google-ai-edge/mediapipe#6356). 고친 버전이 나오면 다시 검토한다.
+# 맥 조건: Apple 칩(M1 이후) + macOS 13 이상 (mediapipe·opencv 의 맥용 설치 파일 조건)
 absl-py==2.5.0
 certifi==2026.7.22
 cffi==2.1.1
@@ -12,7 +14,7 @@ flatbuffers==25.12.19
 fonttools==4.66.0
 kiwisolver==1.5.1
 matplotlib==3.11.2
-mediapipe==1.0.1
+mediapipe==1.0.0
 numpy==2.4.6
 opencv-contrib-python==5.0.0.93
 packaging==26.3
