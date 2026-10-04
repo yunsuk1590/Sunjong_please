@@ -24,8 +24,9 @@ BACKEND_CHOICES = ["auto", "dshow", "msmf", "avfoundation", "any"]
 def auto_backends():
     """auto 일 때 차례로 시도할 카메라 여는 방식.
 
-    윈도우는 msmf 를 먼저 쓴다. 2026-10-04 sunbell 노트북 측정: msmf 초당 30장·여는 데 1초,
-    dshow 초당 16장·3초(수정본이 쓰던 방식). msmf 로 안 열리는 카메라를 위해 dshow 를 다음으로 둔다.
+    윈도우는 msmf 를 먼저 쓴다. 2026-10-04 sunbell 노트북 3분 반 시험: 초당 장수는 둘 다 약 30장,
+    여는 데 msmf 1.3초·dshow 3.5초. dshow 는 켠 직후 몇 초가 느렸다. msmf 로 안 열리는 카메라를 위해
+    dshow 를 다음으로 둔다. (dshow 는 수정본이 쓰던 방식)
     """
     system = platform.system()
     if system == "Windows":
