@@ -1,10 +1,9 @@
-# motion/ 동작 인식 프로그램에 필요한 부품 (2026-10-04, Python 3.11, Windows 11에서 확인)
-# 설치는 setup 파일(윈도우 setup.bat / 맥 setup.command)이 이 목록으로 한다.
-# 버전을 고정해 두었다. 팀원 컴퓨터에서도 똑같이 설치되게 하려는 것이다.
-# opencv-python 은 따로 설치하지 않는다(opencv-contrib-python 과 충돌).
-# mediapipe 는 1.0.1 이 아니라 1.0.0 을 쓴다: 1.0.1 은 맥에서 몸 인식을 시작하자마자 강제 종료된다
-#   (공식 이슈 google-ai-edge/mediapipe#6356). 고친 버전이 나오면 다시 검토한다.
-# 맥 조건: Apple 칩(M1 이후) + macOS 13 이상 (mediapipe·opencv 의 맥용 설치 파일 조건)
+# Pinned packages for motion/ (Python 3.11). Installed by setup.bat / setup.command.
+# Keep this file ASCII only: pip on Korean Windows reads it as cp949 and fails on Korean text.
+# Why each pin is chosen is explained (in Korean) in README.md and docs/decisions.md.
+# - mediapipe 1.0.0, not 1.0.1: 1.0.1 aborts pose detection on macOS (google-ai-edge/mediapipe#6356).
+# - Do not add opencv-python: it conflicts with opencv-contrib-python.
+# - macOS needs Apple silicon (M1 or later) and macOS 13+.
 absl-py==2.5.0
 certifi==2026.7.22
 cffi==2.1.1
