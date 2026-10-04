@@ -1,6 +1,7 @@
 """몸 동작 인식 확인 프로그램 — 실행 파일.
 
-지금은 2단계: 카메라 영상 위에 몸 뼈대(관절 33개 점)를 그리고, 속도·지연을 보여 준다.
+지금은 3단계: 몸 뼈대 위에 동작 판정(두 팔 들기, 몸 좌우 기울이기) 결과를 보여 준다.
+화면 아래 큰 글씨 = 지금 켜진 동작(없으면 NONE), 맨 아래 막대 = 어깨 기울기.
 보통은 run.bat(윈도우) / run.command(맥)을 더블클릭해서 실행한다.
 
 화면 숫자 뜻
@@ -20,8 +21,9 @@ import cv2
 
 import config
 from camera import Camera, CameraError
+from gestures import Frame, Judge, make_gestures
 from metrics import RateMeter, RecentAverage, percentile
-from overlay import draw_lines, draw_skeleton
+from overlay import GRAY, GREEN, draw_label, draw_lines, draw_skeleton, draw_tilt_gauge
 from pose import PoseDetector, PoseDetectorError
 
 WINDOW = "motion"
@@ -97,6 +99,8 @@ def main():
     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(WINDOW, info["width"], info["height"])
 
+    # 사람 자리별 판정 담당. 지금은 자리 0(첫 번째로 찾은 사람) 하나만 쓴다
+    judges = {0: Judge(make_gestures(args))}
     loop_rate = RateMeter()
     latency = RecentAverage()
     infer = RecentAverage()
@@ -122,6 +126,13 @@ def main():
                 for person in people:
                     draw_skeleton(view, person.landmarks)
 
+                height, width = view.shape[:2]
+                results = judges[0].update(Frame(captured_at, people[0] if people else None, width, height))
+                active = [r.state for r in results.values() if r.state]
+                lean = results["LEAN"]
+                draw_tilt_gauge(view, lean.amount, args.lean_enter, args.lean_exit, active=lean.state is not None)
+                draw_label(view, " + ".join(active) if active else "NONE", GREEN if active else GRAY)
+
                 now = time.perf_counter()
                 latency.add(now, (now - captured_at) * 1000)
                 infer.add(now, (infer_done - infer_started) * 1000)
@@ -133,6 +144,7 @@ def main():
                     f"INFER {infer.average(now):.0f} ms   MODEL {args.model}   "
                     + (f"PERSON {len(people)}" if people else "NO PERSON"),
                     f"{info['width']}x{info['height']} {info['fourcc']} {info['backend']}",
+                    *(r.detail for r in results.values()),
                     "q: quit",
                 ]
                 draw_lines(view, lines)
