@@ -5,9 +5,32 @@ OpenCV 기본 글꼴은 한글을 쓰지 못해서 화면 글씨는 영어로 �
 """
 
 import cv2
+from mediapipe.tasks.python import vision
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 WHITE = (255, 255, 255)
+BONE = (230, 230, 230)      # 뼈대 선 색 (BGR)
+JOINT = (0, 200, 255)       # 관절 점 색 (주황)
+CONNECTIONS = vision.PoseLandmarksConnections.POSE_LANDMARKS
+VISIBLE = 0.5               # 이보다 잘 안 보이는 점(가려진 팔 등)은 그리지 않는다
+
+
+def _visible(point):
+    return point.visibility is None or point.visibility >= VISIBLE
+
+
+def draw_skeleton(image, landmarks):
+    """한 사람의 관절 점과 뼈대 선을 그린다."""
+    height, width = image.shape[:2]
+    pixels = [(int(p.x * width), int(p.y * height)) for p in landmarks]
+    thickness = max(2, round(width / 320))
+    for c in CONNECTIONS:
+        if _visible(landmarks[c.start]) and _visible(landmarks[c.end]):
+            cv2.line(image, pixels[c.start], pixels[c.end], BONE, thickness, cv2.LINE_AA)
+    for point, xy in zip(landmarks, pixels):
+        if _visible(point):
+            cv2.circle(image, xy, thickness + 1, JOINT, -1, cv2.LINE_AA)
+    return image
 
 
 def draw_lines(image, lines, origin=(10, 10)):

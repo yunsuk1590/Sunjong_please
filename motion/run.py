@@ -1,6 +1,6 @@
 """몸 동작 인식 확인 프로그램 — 실행 파일.
 
-지금은 1단계: 카메라 영상과 FPS·지연만 보여 준다(아직 몸 인식 없음).
+지금은 2단계: 카메라 영상 위에 몸 뼈대(관절 33개 점)를 그리고, 속도·지연을 보여 준다.
 보통은 run.bat(윈도우) / run.command(맥)을 더블클릭해서 실행한다.
 
 화면 숫자 뜻
@@ -8,6 +8,8 @@
   LOOP    : 프로그램이 1초에 처리해서 화면에 보여 준 사진 수
   LATENCY : 처리 지연. 사진을 받은 순간부터 화면에 보여 주기 직전까지 걸린 시간(1초 평균, ms)
             카메라·모니터 자체의 지연은 들어 있지 않다.
+  INFER   : 그중 MediaPipe 가 몸을 찾는 데 걸린 시간(1초 평균, ms)
+  PERSON  : 찾은 사람 수. 아무도 없으면 NO PERSON
 끄기: q 키, Esc 키, 창 닫기(X), 터미널에서 Ctrl+C
 """
 
@@ -19,7 +21,8 @@ import cv2
 import config
 from camera import Camera, CameraError
 from metrics import RateMeter, RecentAverage, percentile
-from overlay import draw_lines
+from overlay import draw_lines, draw_skeleton
+from pose import PoseDetector, PoseDetectorError
 
 WINDOW = "motion"
 
@@ -54,7 +57,7 @@ def window_closed(state):
     return state["seen"]
 
 
-def print_summary(camera, loop_frames, started, latency):
+def print_summary(args, camera, loop_frames, started, latency, infer):
     elapsed = time.perf_counter() - started
     if elapsed <= 0 or loop_frames == 0:
         return
@@ -67,6 +70,11 @@ def print_summary(camera, loop_frames, started, latency):
         f" · 느린 쪽 5% {percentile(latency.history, 0.95):.0f} ms"
     )
     print(
+        f"  몸 찾기(INFER) 보통 {percentile(infer.history, 0.5):.0f} ms"
+        f" · 느린 쪽 5% {percentile(infer.history, 0.95):.0f} ms"
+        f"  (모델 {args.model}, 최대 {args.num_poses}명)"
+    )
+    print(
         f"  카메라: {info['width']}x{info['height']} {info['fourcc']} {info['backend']},"
         f" 여는 데 {info['open_seconds']:.1f}초"
     )
@@ -74,8 +82,15 @@ def print_summary(camera, loop_frames, started, latency):
 
 def main():
     args = config.parse_args()
+    print(f"[몸 인식] 모델 {args.model}, 최대 {args.num_poses}명 준비 중...")
+    try:
+        detector = PoseDetector(args.model, args.num_poses)
+    except PoseDetectorError as e:
+        print(f"[몸 인식] {e}")
+        return 1
     camera = open_camera(args)
     if camera is None:
+        detector.close()
         return 1
 
     info = camera.info
@@ -84,6 +99,7 @@ def main():
 
     loop_rate = RateMeter()
     latency = RecentAverage()
+    infer = RecentAverage()
     window_state = {"seen": False}
     started = time.perf_counter()
     loop_frames = 0
@@ -97,15 +113,25 @@ def main():
                 break
             if got is not None:
                 frame, captured_at, last_seq = got
+                # 거울처럼 뒤집은 화면에서 몸을 찾는다. 그래야 화면의 왼쪽이 체험자의 왼쪽이 된다
                 view = cv2.flip(frame, 1) if args.mirror else frame.copy()
+
+                infer_started = time.perf_counter()
+                people = detector.detect(view, captured_at)
+                infer_done = time.perf_counter()
+                for person in people:
+                    draw_skeleton(view, person.landmarks)
 
                 now = time.perf_counter()
                 latency.add(now, (now - captured_at) * 1000)
+                infer.add(now, (infer_done - infer_started) * 1000)
                 loop_rate.tick(now)
                 loop_frames += 1
                 lines = [
                     f"CAMERA {camera.camera_fps()} fps   LOOP {loop_rate.rate(now)} fps"
                     f"   LATENCY {latency.average(now):.0f} ms",
+                    f"INFER {infer.average(now):.0f} ms   MODEL {args.model}   "
+                    + (f"PERSON {len(people)}" if people else "NO PERSON"),
                     f"{info['width']}x{info['height']} {info['fourcc']} {info['backend']}",
                     "q: quit",
                 ]
@@ -119,8 +145,9 @@ def main():
         print("\n[종료] Ctrl+C")
     finally:
         camera.close()
+        detector.close()
         cv2.destroyAllWindows()
-        print_summary(camera, loop_frames, started, latency)
+        print_summary(args, camera, loop_frames, started, latency, infer)
     return 0
 
 

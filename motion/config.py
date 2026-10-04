@@ -1,8 +1,8 @@
 """설정값을 한곳에 모은 파일.
 
 기본값은 아래 DEFAULTS 에 있다. 실행할 때 명령 뒤에 붙여서 바꿀 수도 있다.
-  예)  run.bat --res 1280x720
-       run.bat --backend msmf
+  예)  run.bat --model full
+       run.bat --backend dshow
        run.command --camera 1
 """
 
@@ -16,7 +16,12 @@ DEFAULTS = {
     "backend": "auto",    # 카메라 여는 방식. auto = 윈도우는 msmf(안 열리면 dshow), 맥은 avfoundation
     "fourcc": "MJPG",     # dshow 로 열 때 요청할 영상 형식. 카메라가 지원하지 않으면 무시된다
     "mirror": True,       # 화면을 거울처럼 좌우 반전해서 보여 준다
+    "model": "full",      # 몸 인식 모델. full = 보통, lite = 가벼움(빠르지만 가만히 있어도 점이 떨림)
+                          # 2026-10-04 sunbell 확정: full 이 떨림이 거의 없고 초당 장수도 충분(LOOP 28.9)
+    "num_poses": 1,       # 한 번에 찾을 최대 사람 수. 1보다 크면 MediaPipe 의 떨림 줄이기가 꺼진다
 }
+
+MODEL_CHOICES = ["lite", "full"]   # heavy 는 계획에서 뺐다(느리고, setup 이 받지 않음)
 
 BACKEND_CHOICES = ["auto", "dshow", "msmf", "avfoundation", "any"]
 
@@ -52,6 +57,8 @@ def parse_args(argv=None):
     parser.add_argument("--backend", choices=BACKEND_CHOICES, default=DEFAULTS["backend"], help="카메라 여는 방식")
     parser.add_argument("--fourcc", default=DEFAULTS["fourcc"], help="윈도우에서 요청할 영상 형식(빈칸이면 요청 안 함)")
     parser.add_argument("--no-mirror", dest="mirror", action="store_false", help="좌우 반전하지 않기")
+    parser.add_argument("--model", choices=MODEL_CHOICES, default=DEFAULTS["model"], help="몸 인식 모델")
+    parser.add_argument("--num-poses", type=int, default=DEFAULTS["num_poses"], help="한 번에 찾을 최대 사람 수")
     parser.set_defaults(mirror=DEFAULTS["mirror"])
     args = parser.parse_args(argv)
     # 시도할 방식 목록. 직접 고르면 그 방식 하나만 쓴다
