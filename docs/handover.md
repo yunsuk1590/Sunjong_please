@@ -1,5 +1,10 @@
 # 인계 문서: MediaPipe 몸 동작 인식 (`motion/`)
 
+> **2026-11-05 인계 취소됨.** 같은 날 sunbell이 MediaPipe를 계속 맡기로 했습니다.
+> - **1번 환경 정리는 그대로 유효합니다.** 새로 합류하는 사람도 이대로 맞추면 됩니다.
+> - 2번의 브랜치 만들기(`yunsuk1590/motion`)와 9번 메모는 쓰지 않습니다.
+> - 4번의 상황 정리는 11/5 기준입니다. 최신 진행은 `docs/plan-motion-recognition.md`를 봅니다.
+
 - 작성: 2026-11-05, MediaPipe 담당 sunbell(Claude 도움)
 - 대상: **레포 주인 yunsuk1590 님**. sunbell이 자리를 비운 동안 MediaPipe 쪽을 이어서 개발합니다
 - 기준: 브랜치 `sunbell/motion`에서 이 문서가 들어간 커밋
