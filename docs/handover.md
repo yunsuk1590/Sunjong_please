@@ -1,7 +1,7 @@
 # 인계 문서: MediaPipe 몸 동작 인식 (`motion/`)
 
 - 작성: 2026-11-05, MediaPipe 담당 sunbell(Claude 도움)
-- 대상: sunbell이 자리를 비운 동안 MediaPipe 쪽을 이어서 개발할 팀원
+- 대상: **레포 주인 yunsuk1590 님**. sunbell이 자리를 비운 동안 MediaPipe 쪽을 이어서 개발합니다
 - 기준: 브랜치 `sunbell/motion`에서 이 문서가 들어간 커밋
 - 이 문서는 **인계 시점의 상황 정리**입니다. 이후에 바뀌는 것은 아래 원본 문서에 적습니다.
   - 결정: [`decisions.md`](decisions.md)
@@ -15,7 +15,7 @@
    - 지금 판정하는 동작은 샘플 두 개입니다: 두 팔 들기, 몸 좌우 기울이기.
    - 1~3단계는 끝났습니다. 4단계(떨림 방지)는 코드가 완성됐고, 화면으로 확인하는 중입니다.
 2. 환경은 **파이썬 3.11**(권장 3.11.9)과 **버전을 고정한 부품 목록**입니다. `setup`을 더블클릭하면 설치됩니다.
-3. 작업은 `sunbell/motion`에서 갈라져 나온 **본인 브랜치**에서 합니다. main과 레포 맨 위의 기존 파일은 건드리지 않습니다.
+3. 작업은 `sunbell/motion`에서 갈라져 나온 **본인 브랜치 `yunsuk1590/motion`**에서 합니다. main에는 아직 합치지 않습니다.
 
 ---
 
@@ -55,7 +55,7 @@
 
 **① 파이썬 3.11.9와 git 설치**: 위 1번 표를 따릅니다. git 받는 곳은 [`motion/README.md`](../motion/README.md) 1번에 있습니다.
 
-**② git에 내 이름 알려 주기** (컴퓨터마다 처음 한 번)
+**② git에 내 이름 알려 주기** (컴퓨터마다 처음 한 번. 이 컴퓨터에서 이미 커밋해 봤다면 건너뜁니다)
 터미널(윈도우는 PowerShell)에서 입력합니다. 커밋에 이 이름이 작성자로 남습니다.
 
 ```
@@ -64,18 +64,18 @@ git config --global user.email "깃허브에 등록한 이메일"
 ```
 
 **③ 레포 받기 + 내 브랜치 만들기**
-브랜치는 레포 안의 내 작업 공간입니다. `내아이디` 자리에 본인 깃허브 아이디를 영어로 넣습니다.
+브랜치는 레포 안의 내 작업 공간입니다. sunbell의 마지막 작업에서 갈라져 나온 `yunsuk1590/motion` 브랜치를 만듭니다.
 
 ```
 git clone https://github.com/yunsuk1590/Sunjong_please.git
 cd Sunjong_please
 git switch sunbell/motion
-git switch -c 내아이디/motion
-git push -u origin 내아이디/motion
+git switch -c yunsuk1590/motion
+git push -u origin yunsuk1590/motion
 ```
 
-- 맥 시험 때문에 레포를 **이미 받아 두었다면**, 첫 줄 대신 `Sunjong_please` 폴더에서 `git fetch`를 하고 셋째 줄부터 합니다. 셋째 줄 다음에 `git pull`을 한 번 더 합니다.
-- **push가 거절되면** 레포 주인 yunsuk1590 님에게 GitHub 레포 설정의 Collaborator(함께 올릴 수 있는 사람)로 추가해 달라고 합니다.
+- 레포를 **이미 받아 두었다면**, 첫 줄 대신 `Sunjong_please` 폴더에서 `git fetch`를 합니다. 그다음 셋째 줄부터 하고, 셋째 줄 다음에 `git pull`을 한 번 더 합니다.
+  - 받아 둔 폴더에 아직 올리지 않은 수정이 있으면 `git switch`가 멈출 수 있습니다. 그 수정을 먼저 커밋하거나 정리해 주세요.
 - 맥에서 push할 때 비밀번호를 물으면, 깃허브 비밀번호가 아니라 **토큰(Personal access token)**을 넣어야 합니다. 만드는 법: <https://docs.github.com/ko/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens>
 
 **④ 설치**: `motion` 폴더의 `setup.bat`(윈도우) 또는 `setup.command`(맥)를 더블클릭합니다. 처음에는 몇 분 걸립니다. 위 1번의 `[완료]` 화면이 나오면 성공입니다.
@@ -207,13 +207,19 @@ git push
 - **개발 6 맥 시험**: 맥에서는 아직 한 번도 실행해 보지 않았습니다. 맥으로 이어받는다면 그것이 첫 시험입니다.
   - 결과(성공/실패, setup·run 끝의 요약 줄, `git log -1 --oneline`)를 개발 6에 적어 주세요.
   - 아이폰을 맥 웹캠으로 쓰는 설정(연속성 카메라)이 켜져 있으면, 프로그램이 맥북 카메라 대신 아이폰을 잡을 수 있습니다. 그러면 `--camera 1`로 바꿔 봅니다.
+- **레포 주인께 직접 여쭙는 안건**
+  - 개발 7: 지인 원본 코드의 사용 허락, 팀 레포 공개 여부
+  - 개발 8: 수정본 관련 질문. `analysis-original-vs-fork.md` 마지막의 질문 목록입니다. 답을 개발 8에 적어 주시면 됩니다.
 - 개발 1 몸통 기울기, 개발 4 main 합치기, 개발 5 브랜치 이름 규칙 등은 의논 전입니다.
 
 ## 7. 지금까지 지켜 온 작업 규칙
 
-- **main에 직접 올리지 않습니다.** 본인 브랜치에서 작업합니다. `sunbell/motion`에도 직접 올리지 않습니다(sunbell이 돌아와서 합칩니다).
-- **다른 팀원의 파일은 수정하거나 지우지 않습니다.**
-  - 레포 맨 위의 `Main.py`, `Handcontroller.py`, `VirtualGameController.py`, `requirement.txt`, `README.markdown`, `.vscode/`가 여기에 해당합니다.
+- **이 작업은 `yunsuk1590/motion` 브랜치에서 합니다.**
+  - 레포 주인이라 main에 바로 올릴 수도 있지만, `motion/`을 main에 언제 합칠지는 팀 안건(개발 4)이라 아직 합치지 않습니다.
+  - `sunbell/motion`에도 직접 올리지 않습니다. sunbell이 돌아와서 합칩니다.
+- **`motion/` 작업과 레포 맨 위의 기존 파일을 섞지 않습니다.**
+  - 맨 위의 `Main.py`, `Handcontroller.py`, `VirtualGameController.py`, `requirement.txt`, `README.markdown`, `.vscode/`는 yunsuk1590 님의 수정본입니다. `motion/`은 이 파일들을 쓰지 않습니다.
+  - 기존 파일을 고치실 때는 `motion/` 커밋과 따로 해 주세요.
   - 새 코드는 `motion/`에, 문서는 `docs/`에 둡니다.
 - 무언가를 정하면 [`decisions.md`](decisions.md)에 날짜·내용·이유·**정한 사람**을 적습니다.
 - 팀과 함께 정할 것은 정하지 말고 [`team-agenda.md`](team-agenda.md)에 올립니다(구현·개발 쪽 / 운영 쪽).
@@ -236,13 +242,13 @@ git push
 
 ## 9. sunbell이 돌아왔을 때 (메모)
 
-팀원 브랜치의 작업을 내 브랜치로 가져옵니다. `팀원아이디` 자리에 팀원 브랜치 이름을 넣습니다.
+yunsuk1590 님 브랜치의 작업을 내 브랜치로 가져옵니다.
 
 ```
 git fetch
 git switch sunbell/motion
-git merge origin/팀원아이디/motion
+git merge origin/yunsuk1590/motion
 ```
 
-- 그사이 `sunbell/motion`에 새 커밋이 없었다면, 팀원 작업이 그대로 이어 붙습니다(충돌 없음).
+- 그사이 `sunbell/motion`에 새 커밋이 없었다면, yunsuk1590 님 작업이 그대로 이어 붙습니다(충돌 없음).
 - 그 뒤 push하기 전에 무엇이 바뀌었는지 함께 확인합니다.
