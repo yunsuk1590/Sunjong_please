@@ -16,4 +16,5 @@
 | 2026-11-05 | 에듀이노 「2휠 교육용 RC카」 **교육 자료와 예제 코드는 공개 레포에 올리지 않는다** | 예제 코드 머리말에 "소유권은 에듀이노에 있고, 허락 없이 수정·배포하면 처벌받을 수 있다"고 적혀 있다. 팀 레포는 공개 상태다 | sunbell |
 | 2026-11-05 | 팀 문서 구성: `docs/` 바로 아래에 [`team-status.md`](team-status.md)(파트별 상태판), `team-decisions.md`(이 문서), `arduino-brief.md`(아두이노 담당 작업 안내), `meetings/`(회의 기록, 첫 회의 때 만듦)를 둔다. 모두 `sunbell/team`에서만 고친다 | MediaPipe 쪽(`sunbell/motion`)과 같은 파일을 따로 고치면 나중에 합칠 때 부딪힌다. `docs/` 바로 아래에 두면 MediaPipe 문서에 있는 `team-agenda.md` 링크가 깨지지 않는다 | sunbell |
 | 2026-11-05 | `team-agenda.md`의 안건이 정해지면 **이 문서**로 옮긴다(전에는 `decisions.md`로 옮겼다) | `decisions.md`는 MediaPipe 쪽에서 고치는 문서다 | sunbell |
-| 2026-11-05 | 팀 문서는 **main에 합쳐서** 팀원에게 보여 준다. 어떻게 합칠지(팀 문서만 / 브랜치 전체)와 언제 합칠지는 아직 정하지 않았다(`team-agenda.md` 개발 4) | 깃허브에서 레포를 열면 main이 먼저 보여서, 팀원이 따로 브랜치를 바꾸지 않아도 된다 | sunbell |
+| 2026-11-05 | 팀 문서는 **main에 합쳐서** 팀원에게 보여 준다 | 깃허브에서 레포를 열면 main이 먼저 보여서, 팀원이 따로 브랜치를 바꾸지 않아도 된다 | sunbell |
+| 2026-11-05 | 합치는 방법: **`sunbell/team` 브랜치 전체를 PR(풀 리퀘스트)로 main에 합친다.** 그래서 MediaPipe 코드(`motion/`)와 MediaPipe 문서도 함께 main에 올라간다(`team-agenda.md` 개발 4의 첫 합치기). 레포 주인 yunsuk1590이 PR을 보고 합친다 | `sunbell/team`은 `sunbell/motion`에서 갈라져 나와서, 팀 문서만 따로 올리면 팀 문서가 가리키는 MediaPipe 문서가 main에 없어 링크가 깨진다. PR로 하면 레포 주인이 무엇이 올라가는지 보고 동의할 수 있다. `motion/`은 원래 프로그램(`Main.py` 등)과 다른 폴더라 부딪히지 않는다 | sunbell (PR에서 yunsuk1590 확인 예정) |
