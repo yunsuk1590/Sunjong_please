@@ -5,6 +5,7 @@
   2) name, states, check() 를 새 동작에 맞게 고친다.
   3) 아래 make_gestures() 의 목록에 한 줄을 추가한다.
   4) 판정 기준을 docs/gesture-rules.md 에 적는다(기준의 원본은 그 문서).
+  5) (선택) 떨림 방지 시간을 따로 정하려면 stabilizer.py 의 make_stabilizer() 에 한 줄 추가한다.
 """
 
 from collections import deque

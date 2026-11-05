@@ -108,3 +108,45 @@ def draw_tilt_gauge(image, tilt, enter, exit, active=False, limit=30.0):
         color = GREEN if active else WHITE
         cv2.circle(image, (x_of(tilt), y), bar * 2, color, -1, cv2.LINE_AA)
     return image
+
+
+STATE_COLORS = {
+    "ARMS_UP": GREEN,
+    "LEAN_LEFT": (230, 150, 40),     # 파랑
+    "LEAN_RIGHT": (40, 150, 255),    # 주황
+}
+EMPTY = (70, 70, 70)                 # 동작 없음
+
+
+def draw_timeline(image, history, names, now, span=3.0):
+    """최근 span 초 동안 동작마다 RAW(원래 결과)와 STABLE(떨림을 막은 결과)을 색 띠로 그린다.
+
+    history: (시각, {동작: RAW 상태}, {동작: STABLE 상태}) 목록. 오른쪽 끝이 지금이다.
+    """
+    height, width = image.shape[:2]
+    left, right = 95, width - 15
+    row, gap = max(8, height // 60), 3
+    rows = [(name, kind) for name in names for kind in ("raw", "stable")]
+    label_scale = max(1.0, width / 400)      # draw_label 과 같은 글씨 크기
+    bottom = height - int(height * 0.14) - int(32 * label_scale) - 8   # 큰 글씨 상자 바로 위
+    top = bottom - len(rows) * (row + gap)
+    _darken(image, 5, top - 4, width - 5, bottom + 2)
+
+    def x_of(t):
+        return int(left + (t - (now - span)) / span * (right - left))
+
+    records = [r for r in history if r[0] >= now - span]
+    scale = max(0.4, width / 1600)
+    for i, (name, kind) in enumerate(rows):
+        y = top + i * (row + gap)
+        short = name.split("_")[0]
+        cv2.putText(image, f"{short} {kind}", (10, y + row), FONT, scale, WHITE, 1, cv2.LINE_AA)
+        cv2.rectangle(image, (left, y), (right, y + row), EMPTY, -1)
+        for j, (t, raw, stable) in enumerate(records):
+            state = (raw if kind == "raw" else stable).get(name)
+            if state is None:
+                continue
+            t_next = records[j + 1][0] if j + 1 < len(records) else now
+            cv2.rectangle(image, (max(left, x_of(t)), y), (min(right, x_of(t_next)), y + row),
+                          STATE_COLORS.get(state, WHITE), -1)
+    return image

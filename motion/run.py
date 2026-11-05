@@ -1,7 +1,8 @@
 """몸 동작 인식 확인 프로그램 — 실행 파일.
 
-지금은 3단계: 몸 뼈대 위에 동작 판정(두 팔 들기, 몸 좌우 기울이기) 결과를 보여 준다.
-화면 아래 큰 글씨 = 지금 켜진 동작(없으면 NONE), 맨 아래 막대 = 어깨 기울기.
+지금은 4단계: 동작 판정(두 팔 들기, 몸 좌우 기울이기)에 떨림 방지를 더했다.
+화면 아래 큰 글씨 = 떨림을 막은 결과(STABLE, 없으면 NONE), 위쪽 RAW 줄 = 떨림 방지 전 원래 결과,
+색 띠 = 최근 3초의 RAW 와 STABLE, 맨 아래 막대 = 어깨 기울기.
 보통은 run.bat(윈도우) / run.command(맥)을 더블클릭해서 실행한다.
 
 화면 숫자 뜻
@@ -16,15 +17,19 @@
 
 import sys
 import time
+from collections import deque
 
 import cv2
 
 import config
 from camera import Camera, CameraError
 from gestures import Frame, Judge, make_gestures
-from metrics import RateMeter, RecentAverage, percentile
-from overlay import GRAY, GREEN, draw_label, draw_lines, draw_skeleton, draw_tilt_gauge
+from metrics import ChangeCounter, RateMeter, RecentAverage, percentile
+from overlay import GRAY, GREEN, draw_label, draw_lines, draw_skeleton, draw_tilt_gauge, draw_timeline
 from pose import PoseDetector, PoseDetectorError
+from stabilizer import make_stabilizer
+
+TIMELINE_SECONDS = 3.0   # 색 띠에 보여 줄 최근 시간
 
 WINDOW = "motion"
 
@@ -57,6 +62,15 @@ def window_closed(state):
         state["seen"] = True
         return False
     return state["seen"]
+
+
+def print_changes(raw_changes, stable_changes):
+    """떨림 방지 전(RAW)과 후(STABLE)에 동작 상태가 몇 번 바뀌었는지."""
+    for name in raw_changes.counts:
+        print(
+            f"  {name}: 원래 결과(RAW) {raw_changes.counts[name]}번 바뀜"
+            f" → 떨림 방지 후(STABLE) {stable_changes.counts.get(name, 0)}번"
+        )
 
 
 def print_summary(args, camera, loop_frames, started, latency, infer):
@@ -99,8 +113,15 @@ def main():
     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(WINDOW, info["width"], info["height"])
 
-    # 사람 자리별 판정 담당. 지금은 자리 0(첫 번째로 찾은 사람) 하나만 쓴다
+    # 사람 자리별 판정 담당과 떨림 방지. 지금은 자리 0(첫 번째로 찾은 사람) 하나만 쓴다
     judges = {0: Judge(make_gestures(args))}
+    stabilizers = {0: make_stabilizer(args)}
+    timeline = deque()
+    raw_changes, stable_changes = ChangeCounter(), ChangeCounter()
+    wait_text = (
+        f"WAIT arms {args.arms_on:.2f}/{args.arms_off:.2f}s  lean {args.lean_on:.2f}/{args.lean_off:.2f}s"
+        f"  lost {args.lost:.1f}s"
+    )
     loop_rate = RateMeter()
     latency = RecentAverage()
     infer = RecentAverage()
@@ -128,10 +149,21 @@ def main():
 
                 height, width = view.shape[:2]
                 results = judges[0].update(Frame(captured_at, people[0] if people else None, width, height))
-                active = [r.state for r in results.values() if r.state]
-                lean = results["LEAN"]
-                draw_tilt_gauge(view, lean.amount, args.lean_enter, args.lean_exit, active=lean.state is not None)
-                draw_label(view, " + ".join(active) if active else "NONE", GREEN if active else GRAY)
+                raw = {name: r.state for name, r in results.items()}
+                stable = stabilizers[0].update(results, bool(people), captured_at)
+                raw_changes.update(raw)
+                stable_changes.update(stable)
+                timeline.append((captured_at, raw, dict(stable)))
+                while timeline and captured_at - timeline[0][0] > TIMELINE_SECONDS + 0.5:
+                    timeline.popleft()
+
+                raw_active = [s for s in raw.values() if s]
+                stable_active = [s for s in stable.values() if s]
+                draw_timeline(view, timeline, list(results), captured_at, TIMELINE_SECONDS)
+                draw_tilt_gauge(view, results["LEAN"].amount, args.lean_enter, args.lean_exit,
+                                active=stable.get("LEAN") is not None)
+                draw_label(view, " + ".join(stable_active) if stable_active else "NONE",
+                           GREEN if stable_active else GRAY)
 
                 now = time.perf_counter()
                 latency.add(now, (now - captured_at) * 1000)
@@ -145,6 +177,8 @@ def main():
                     + (f"PERSON {len(people)}" if people else "NO PERSON"),
                     f"{info['width']}x{info['height']} {info['fourcc']} {info['backend']}",
                     *(r.detail for r in results.values()),
+                    "RAW: " + (" + ".join(raw_active) if raw_active else "NONE"),
+                    wait_text,
                     "q: quit",
                 ]
                 draw_lines(view, lines)
@@ -160,6 +194,8 @@ def main():
         detector.close()
         cv2.destroyAllWindows()
         print_summary(args, camera, loop_frames, started, latency, infer)
+        if loop_frames:
+            print_changes(raw_changes, stable_changes)
     return 0
 
 

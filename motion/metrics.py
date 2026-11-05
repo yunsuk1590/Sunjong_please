@@ -50,3 +50,18 @@ def percentile(values, fraction):
     ordered = sorted(values)
     index = min(len(ordered) - 1, round(fraction * (len(ordered) - 1)))
     return ordered[index]
+
+
+class ChangeCounter:
+    """동작마다 상태가 몇 번 바뀌었는지 센다. 떨림 방지 전(RAW)과 후(STABLE)를 비교할 때 쓴다."""
+
+    def __init__(self):
+        self.last = {}
+        self.counts = {}
+
+    def update(self, states):
+        for name, state in states.items():
+            if name in self.last and self.last[name] != state:
+                self.counts[name] = self.counts.get(name, 0) + 1
+            self.counts.setdefault(name, 0)
+            self.last[name] = state
