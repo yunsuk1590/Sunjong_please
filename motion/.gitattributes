@@ -1,0 +1,4 @@
+# 줄 끝 문자를 운영체제에 맞게 고정한다 (motion 폴더 안에서만 적용)
+# 맥 실행 파일은 LF 여야 하고, 윈도우 배치 파일은 CRLF 가 안전하다.
+*.command text eol=lf
+*.bat text eol=crlf
