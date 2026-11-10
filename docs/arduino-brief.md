@@ -6,6 +6,58 @@
 > - **누가 고치나요?** 팀장 sunbell이 고칩니다. 바꿀 점이나 질문이 있으면 sunbell에게 알려 주세요.
 > - **「운영 7 · 11/11 발표회 시연」 같은 이름은?** [팀원들과 의논할 것](team-agenda.md) 문서의 안건(아직 정하지 않아 함께 정할 것) 번호와 이름입니다.
 > - 처음 보는 말은 맨 아래 「9. 낱말 풀이」에 있습니다.
+> - **Claude에게**: yunsuk1590이 「현황 확인하고 다음 할 일 해 줘」라고 하면, 바로 아래 「Claude가 이어서 작업할 때」부터 읽어 주세요.
+
+## Claude가 이어서 작업할 때 (yunsuk1590의 Claude용, 2026-11-11 02:40 갱신)
+
+sunbell이 깃허브의 팀 문서를 고칠 때마다 이 장도 함께 고칩니다. 아래 「지금 상태」가 깃허브와 다르면, 깃허브를 믿고 yunsuk1590에게 알려 주세요.
+
+### 현황 확인하는 법
+이 문서는 `sunbell/team` 브랜치에 있습니다. PR #1이 합쳐지기 전에는 main에 없습니다. 자기 브랜치(`yunsuk1590/arduino`)에 있어도 브랜치를 바꾸지 않고 아래처럼 볼 수 있습니다.
+
+```
+git fetch origin
+git show origin/sunbell/team:docs/arduino-brief.md
+git show origin/sunbell/team:docs/team-decisions.md
+git log --oneline -5 origin/yunsuk1590/arduino
+git show origin/sunbell/arduino:arduino/car_backup/README.md
+```
+
+- `team-decisions.md`: 정한 것과 정한 사람(「11/11 학과 발표회 시연」 표)
+- `arduino/car_backup/README.md`의 「6-1」: sunbell 차로 같은 담당자 코드를 시험한 결과(USB, 블루투스, 바닥)
+- 자기 기록은 `yunsuk1590/arduino`의 `arduino/README.md`입니다.
+
+### 지금 상태 (2026-11-11 02:40 기준)
+
+| 항목 | 상태 |
+|---|---|
+| `yunsuk1590/arduino` | 최신 커밋 `3de4172`. `car.ino`의 `DRIVE_SPEED`는 **200**입니다. yunsuk1590 차로 한 USB 시험은 정상이었고, 블루투스는 이 차로 시험하지 않았습니다 |
+| sunbell 차 보드 | 담당자 코드 `aa7ae28`에서 `DRIVE_SPEED`만 **255**로 바꾼 판이 올라가 있습니다. 이 판은 레포에 없습니다. USB와 블루투스(`COM11`) 모두 약속대로 동작했고, 바닥에서는 255로 움직였습니다 |
+| 정해진 값 | `FORWARD_MS` = 1000(1초), `RESTART_TIMER_ON_REPEAT` = `true`(11/10, sunbell 제안·yunsuk1590 동의). `DRIVE_SPEED` = 255(11/11 sunbell). 조금 왼쪽으로 휘는 것은 코드로 고치지 않습니다(11/11 sunbell) |
+| 노트북 쪽 | sunbell 노트북에서 몸 동작 → 블루투스(`COM11`) → 차를 이어 보는 시험을 하는 중입니다 |
+
+### 다음 할 일 (순서대로)
+1. `arduino/car/car.ino`의 `DRIVE_SPEED`를 **255**로 바꿉니다.
+   - 주석의 「시작값, 차 시험 보고 조정」을 「11/11 sunbell 결정」으로 고칩니다. 다른 값은 바꾸지 않습니다.
+   - 컴파일해서 오류가 없는지 봅니다. 차가 있으면 바닥에서 `F`로 출발하는지 한 번 봅니다.
+2. `arduino/README.md`를 고칩니다.
+   - 「3. 정한 것과 임시인 것」: 11/11 모터 세기 255(이유: sunbell 차가 바닥에서 200으로 출발하지 못함, AA 건전지, 정한 사람 sunbell). 1초와 「다시 잼」도 「확정」으로 바꿉니다.
+   - 「6. 시험 방법과 결과」: 1번에서 확인한 결과. 블루투스 칸은 sunbell 차 결과를 「참고: sunbell 차, 11/11」로 표시해 옮겨도 됩니다.
+3. 커밋하고 `yunsuk1590/arduino`에 push한 뒤 yunsuk1590에게 「sunbell에게 알려 달라」고 말합니다. 커밋 메시지는 `arduino - 무엇을 바꿨는지` 형식입니다(예: `arduino - 모터 세기 255로 (11/11 sunbell 결정)`).
+4. 이어 보는 시험은 sunbell 노트북에서 sunbell이 진행합니다. 차가 이상하면 시리얼 모니터에 찍힌 글(예: `BT: F -> 앞으로`)을 sunbell에게 보냅니다.
+
+**됐다고 볼 때**: 깃허브 `yunsuk1590/arduino`의 `car.ino`가 `DRIVE_SPEED = 255`이고, README에 11/11 결정과 시험 결과가 적혀 있습니다.
+
+### Claude가 정하지 말 것
+- 왼쪽과 오른쪽 바퀴 세기를 따로 두기: 발표회 뒤에 sunbell과 yunsuk1590이 정합니다.
+- 가는 시간, 글자 약속, 「다시 잼」 바꾸기.
+- 그 밖에 정해지지 않은 것을 만나면 임시값으로 두고, yunsuk1590에게 「sunbell과 정할 것」이라고 알립니다.
+
+### 지킬 것
+- 자기 브랜치 `yunsuk1590/arduino`의 `arduino/` 폴더만 고칩니다. `sunbell/…` 브랜치, `motion/` 폴더, 팀 문서(`docs/`)는 고치지 않습니다.
+- main에 직접 push하지 않습니다.
+- 키트 예제 코드와 교육 자료는 올리지 않습니다. 공개 레포라 개인정보도 적지 않습니다.
+- 자세한 규칙은 아래 「7. 지켜 줄 것」에 있습니다. 사람용 설명은 「3. 첫 할 일」의 「지금 할 일 (11/11)」에 있습니다.
 
 ## 0. 세 줄 요약
 
