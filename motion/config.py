@@ -31,11 +31,20 @@ DEFAULTS = {
     "lean_on": 0.20,      # 기울이기: 켜지려면 이만큼 유지
     "lean_off": 0.25,     # 기울이기: 꺼지려면 이만큼 사라짐
     "lost": 0.5,          # 사람이 이만큼 안 보이면 모든 동작을 끈다(더 짧게 안 보이면 그대로 둠). 11/5 sunbell 확정
+    # 글자 보내기(11/11 발표회 시연용). 11/8 sunbell 확정. 자세한 내용은 docs/decisions.md
+    "port": "",           # 글자를 보낼 포트(예: COM5). 빈칸이면 보내지 않고 화면과 터미널에만 표시한다
+    "baud": 9600,         # 통신 속도. HC-06 과 아두이노 쪽 약속이 9600
+    "send_on": "ARMS_UP", # 이 동작이 켜지는 순간 letter_on 을 보낸다
+    "letter_on": "F",     # 앞으로
+    "letter_off": "",     # 동작이 꺼지는 순간 보낼 글자. 빈칸이면 보내지 않는다(차가 스스로 멈춘다)
+    "letter_quit": "S",   # 프로그램을 끌 때 한 번 보낸다. 멈춤
 }
 
 MODEL_CHOICES = ["lite", "full"]   # heavy 는 계획에서 뺐다(느리고, setup 이 받지 않음)
 
 BACKEND_CHOICES = ["auto", "dshow", "msmf", "avfoundation", "any"]
+
+SEND_ON_CHOICES = ["ARMS_UP", "LEAN_LEFT", "LEAN_RIGHT"]   # gestures/ 의 states. 새 동작을 쓰려면 여기에도 추가한다
 
 
 def auto_backends():
@@ -61,6 +70,13 @@ def parse_resolution(text):
     return width, height
 
 
+def parse_letter(text):
+    """보낼 글자. 영어·숫자 같은 아스키 글자 하나이거나, 보내지 않으려면 빈칸."""
+    if text == "" or (len(text) == 1 and text.isascii()):
+        return text
+    raise argparse.ArgumentTypeError(f"글자는 F 처럼 하나만 적어 주세요: {text}")
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="몸 동작 인식 확인 프로그램")
     parser.add_argument("--camera", type=int, default=DEFAULTS["camera"], help="카메라 번호")
@@ -77,6 +93,14 @@ def parse_args(argv=None):
                        ("lean_on", "기울이기 켜짐"), ("lean_off", "기울이기 꺼짐"), ("lost", "사람 없음 처리")):
         parser.add_argument("--" + name.replace("_", "-"), type=float, default=DEFAULTS[name],
                             help=f"떨림 방지: {text} 대기 시간(초)")
+    parser.add_argument("--port", default=DEFAULTS["port"], help="글자를 보낼 포트, 예: COM5. 없으면 화면에만 표시")
+    parser.add_argument("--baud", type=int, default=DEFAULTS["baud"], help="통신 속도")
+    parser.add_argument("--send-on", choices=SEND_ON_CHOICES, default=DEFAULTS["send_on"],
+                        help="이 동작이 켜지는 순간 글자를 보냄")
+    for name, text in (("letter_on", "동작이 켜지는 순간"), ("letter_off", "동작이 꺼지는 순간"),
+                       ("letter_quit", "프로그램을 끌 때")):
+        parser.add_argument("--" + name.replace("_", "-"), type=parse_letter, default=DEFAULTS[name],
+                            help=f"{text} 보낼 글자. 빈칸이면 보내지 않음")
     parser.set_defaults(mirror=DEFAULTS["mirror"])
     args = parser.parse_args(argv)
     # 시도할 방식 목록. 직접 고르면 그 방식 하나만 쓴다

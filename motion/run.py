@@ -1,9 +1,10 @@
 """몸 동작 인식 확인 프로그램 — 실행 파일.
 
-지금은 4단계: 동작 판정(두 팔 들기, 몸 좌우 기울이기)에 떨림 방지를 더했다.
+동작 판정(두 팔 들기, 몸 좌우 기울이기)에 떨림 방지를 더했고, 11/11 발표회용 글자 보내기를 붙였다.
 화면 아래 큰 글씨 = 떨림을 막은 결과(STABLE, 없으면 NONE), 위쪽 RAW 줄 = 떨림 방지 전 원래 결과,
-색 띠 = 최근 3초의 RAW 와 STABLE, 맨 아래 막대 = 어깨 기울기.
+색 띠 = 최근 3초의 RAW 와 STABLE, 맨 아래 막대 = 어깨 기울기, OUTPUT 줄 = 글자 보내기 상태.
 보통은 run.bat(윈도우) / run.command(맥)을 더블클릭해서 실행한다.
+더블클릭하면 글자를 보내지 않는다. 보내려면 포트를 적는다. 예) run.bat --port COM5
 
 화면 숫자 뜻
   CAMERA  : 카메라에서 1초에 받은 사진 수
@@ -25,6 +26,7 @@ import config
 from camera import Camera, CameraError
 from gestures import Frame, Judge, make_gestures
 from metrics import ChangeCounter, RateMeter, RecentAverage, percentile
+from output import make_output
 from overlay import GRAY, GREEN, draw_label, draw_lines, draw_skeleton, draw_tilt_gauge, draw_timeline
 from pose import PoseDetector, PoseDetectorError
 from stabilizer import make_stabilizer
@@ -126,6 +128,7 @@ def main():
     latency = RecentAverage()
     infer = RecentAverage()
     window_state = {"seen": False}
+    output = make_output(args)
     started = time.perf_counter()
     loop_frames = 0
     last_seq = 0
@@ -151,6 +154,7 @@ def main():
                 results = judges[0].update(Frame(captured_at, people[0] if people else None, width, height))
                 raw = {name: r.state for name, r in results.items()}
                 stable = stabilizers[0].update(results, bool(people), captured_at)
+                output.update(stable, captured_at)
                 raw_changes.update(raw)
                 stable_changes.update(stable)
                 timeline.append((captured_at, raw, dict(stable)))
@@ -179,6 +183,7 @@ def main():
                     *(r.detail for r in results.values()),
                     "RAW: " + (" + ".join(raw_active) if raw_active else "NONE"),
                     wait_text,
+                    output.status_text(now),
                     "q: quit",
                 ]
                 draw_lines(view, lines)
@@ -190,6 +195,7 @@ def main():
     except KeyboardInterrupt:
         print("\n[종료] Ctrl+C")
     finally:
+        output.close()    # 끌 때 보낼 글자가 먼저 나가도록 맨 앞에 둔다
         camera.close()
         detector.close()
         cv2.destroyAllWindows()
