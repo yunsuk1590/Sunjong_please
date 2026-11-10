@@ -16,7 +16,7 @@ const char CMD_FORWARD = 'F';  // 앞으로
 const char CMD_STOP    = 'S';  // 멈춤
 
 // ───────── 조정값 ─────────
-const uint8_t       DRIVE_SPEED = 200;    // 모터 세기 0~255 (시작값, 차 시험 보고 조정)
+const uint8_t       DRIVE_SPEED = 255;    // 모터 세기 0~255 (11/11 sunbell 결정)
 const unsigned long FORWARD_MS  = 1000;   // F 한 번에 앞으로 가는 시간, ms (시작값, 차 시험 보고 조정)
 // 가는 도중 F가 또 오면: true = 그때부터 시간을 다시 잰다, false = 무시한다
 const bool          RESTART_TIMER_ON_REPEAT = true;
