@@ -8,7 +8,7 @@
 > - 처음 보는 말은 맨 아래 「9. 낱말 풀이」에 있습니다.
 > - **Claude에게**: yunsuk1590이 「현황 확인하고 다음 할 일 해 줘」라고 하면, 바로 아래 「Claude가 이어서 작업할 때」부터 읽어 주세요.
 
-## Claude가 이어서 작업할 때 (yunsuk1590의 Claude용, 2026-11-11 02:40 갱신)
+## Claude가 이어서 작업할 때 (yunsuk1590의 Claude용, 2026-11-11 03:15 갱신)
 
 sunbell이 깃허브의 팀 문서를 고칠 때마다 이 장도 함께 고칩니다. 아래 「지금 상태」가 깃허브와 다르면, 깃허브를 믿고 yunsuk1590에게 알려 주세요.
 
@@ -27,14 +27,14 @@ git show origin/sunbell/arduino:arduino/car_backup/README.md
 - `arduino/car_backup/README.md`의 「6-1」: sunbell 차로 같은 담당자 코드를 시험한 결과(USB, 블루투스, 바닥)
 - 자기 기록은 `yunsuk1590/arduino`의 `arduino/README.md`입니다.
 
-### 지금 상태 (2026-11-11 02:40 기준)
+### 지금 상태 (2026-11-11 03:15 기준)
 
 | 항목 | 상태 |
 |---|---|
 | `yunsuk1590/arduino` | 최신 커밋 `3de4172`. `car.ino`의 `DRIVE_SPEED`는 **200**입니다. yunsuk1590 차로 한 USB 시험은 정상이었고, 블루투스는 이 차로 시험하지 않았습니다 |
 | sunbell 차 보드 | 담당자 코드 `aa7ae28`에서 `DRIVE_SPEED`만 **255**로 바꾼 판이 올라가 있습니다. 이 판은 레포에 없습니다. USB와 블루투스(`COM11`) 모두 약속대로 동작했고, 바닥에서는 255로 움직였습니다 |
 | 정해진 값 | `FORWARD_MS` = 1000(1초), `RESTART_TIMER_ON_REPEAT` = `true`(11/10, sunbell 제안·yunsuk1590 동의). `DRIVE_SPEED` = 255(11/11 sunbell). 조금 왼쪽으로 휘는 것은 코드로 고치지 않습니다(11/11 sunbell) |
-| 노트북 쪽 | sunbell 노트북에서 몸 동작 → 블루투스(`COM11`) → 차를 이어 보는 시험을 하는 중입니다 |
+| 노트북 쪽 | 몸 동작 프로그램 → 블루투스(`COM11`) → sunbell 차까지 이어 보는 시험을 통과했습니다(11/11). 바닥에서 5번 모두 움직였고, 리허설 146초 동안 잘못 켜진 적이 없었습니다. USB 선(`COM9`) 예비책은 sunbell이 발표 전에 한 번 시험합니다 |
 
 ### 다음 할 일 (순서대로)
 1. `arduino/car/car.ino`의 `DRIVE_SPEED`를 **255**로 바꿉니다.
@@ -44,7 +44,7 @@ git show origin/sunbell/arduino:arduino/car_backup/README.md
    - 「3. 정한 것과 임시인 것」: 11/11 모터 세기 255(이유: sunbell 차가 바닥에서 200으로 출발하지 못함, AA 건전지, 정한 사람 sunbell). 1초와 「다시 잼」도 「확정」으로 바꿉니다.
    - 「6. 시험 방법과 결과」: 1번에서 확인한 결과. 블루투스 칸은 sunbell 차 결과를 「참고: sunbell 차, 11/11」로 표시해 옮겨도 됩니다.
 3. 커밋하고 `yunsuk1590/arduino`에 push한 뒤 yunsuk1590에게 「sunbell에게 알려 달라」고 말합니다. 커밋 메시지는 `arduino - 무엇을 바꿨는지` 형식입니다(예: `arduino - 모터 세기 255로 (11/11 sunbell 결정)`).
-4. 이어 보는 시험은 sunbell 노트북에서 sunbell이 진행합니다. 차가 이상하면 시리얼 모니터에 찍힌 글(예: `BT: F -> 앞으로`)을 sunbell에게 보냅니다.
+4. sunbell 노트북과 sunbell 차로 이어 보는 시험은 끝났습니다(11/11 통과). yunsuk1590 차로도 이어 볼지는 sunbell과 정합니다. 차가 이상하면 시리얼 모니터에 찍힌 글(예: `BT: F -> 앞으로`)을 sunbell에게 보냅니다.
 
 **됐다고 볼 때**: 깃허브 `yunsuk1590/arduino`의 `car.ino`가 `DRIVE_SPEED = 255`이고, README에 11/11 결정과 시험 결과가 적혀 있습니다.
 
@@ -62,7 +62,7 @@ git show origin/sunbell/arduino:arduino/car_backup/README.md
 ## 0. 세 줄 요약
 
 1. **맡을 일**: 노트북이 보낸 명령을 받아서 **차를 움직이는 아두이노 쪽**입니다. 차단봉(게이트)을 만들기로 정하면 그것도 맡습니다.
-2. **지금 가장 급한 일 (11/11, 발표회 당일)**: 오늘 학과 발표회에서 몸 동작으로 차를 움직이는 모습을 보여 줍니다. 차 시험과 값 정하기는 끝났습니다. 이제 **`car.ino`의 모터 세기를 255로 바꿔 올리기** → sunbell 노트북과 이어 보기가 남았습니다. 아래 「3. 첫 할 일」의 「지금 할 일 (11/11)」을 봐 주세요.
+2. **지금 가장 급한 일 (11/11, 발표회 당일)**: 오늘 학과 발표회에서 몸 동작으로 차를 움직이는 모습을 보여 줍니다. 차 시험, 값 정하기, sunbell 노트북과 sunbell 차로 이어 보기는 끝났습니다. 이제 **`car.ino`의 모터 세기를 255로 바꿔 올리기**가 남았습니다. 아래 「3. 첫 할 일」의 「지금 할 일 (11/11)」을 봐 주세요.
 3. **작업 위치**: `yunsuk1590/arduino` 브랜치의 `arduino/` 폴더. 팀 문서 PR을 기다리지 말고 **바로 시작**해 주세요.
 
 ---
@@ -86,6 +86,7 @@ git show origin/sunbell/arduino:arduino/car_backup/README.md
     - 자세한 결과는 예비 코드 README의 「6-1」(`sunbell/arduino` 브랜치 `arduino/car_backup/README.md`)에 있습니다.
   - **정한 값**: 가는 시간 1초, 가는 도중 `F`가 또 오면 시간을 다시 잼(11/10, sunbell 제안·yunsuk1590 동의). 모터 세기 255, 휘는 것은 발표회에서 그대로 둠(11/11 sunbell). → [팀 결정 기록](team-decisions.md)
   - **sunbell 차 보드**에는 담당자 코드 `aa7ae28`에서 세기만 255로 바꾼 판이 올라가 있습니다. 이 판은 아직 레포에 없습니다.
+  - **이어 보기**: sunbell 노트북의 몸 동작 프로그램 → 블루투스(`COM11`) → sunbell 차까지 통과했습니다. 바닥에서 동작을 5번 해서 차가 5번 모두 움직였습니다.
 - **11/10 현황**
   - yunsuk1590이 `yunsuk1590/arduino` 브랜치에 `arduino/car/car.ino`와 `arduino/README.md`를 올렸습니다(커밋 `00ef9f2`).
   - sunbell이 확인한 것(Claude 도움): 11/8 약속(`F` = 앞으로, `S` = 멈춤, 스스로 멈춤, 블루투스와 USB 모두 9600, 모르는 글자 무시)을 모두 따릅니다. sunbell 윈도우 노트북에서 보드 「Arduino Uno」 설정으로 컴파일하니 오류 없이 끝났습니다(프로그램 4,320바이트).
@@ -122,7 +123,7 @@ git show origin/sunbell/arduino:arduino/car_backup/README.md
    - 지금 sunbell 차 보드에 올라간 판(`aa7ae28`에서 세기만 255)과 레포 코드를 맞추려는 것입니다.
    - 바꾼 뒤 자기 차에서도 바닥에서 한 번 확인하고, README의 「3. 정한 것과 임시인 것」과 「6. 시험 방법과 결과」에 적어 주세요.
 2. **README에 블루투스 결과 적기** (선택): sunbell 차로 한 블루투스 시험은 같은 담당자 코드로 한 것입니다. 예비 코드 README의 「6-1」을 참고로 옮겨 적어도 됩니다.
-3. **sunbell 노트북과 이어 보기** (아래 「첫 할 일 ③」): 몸 동작 인식 → HC-06 → 차. 11/11 기준 아직입니다.
+3. **sunbell 노트북과 이어 보기** (아래 「첫 할 일 ③」): 몸 동작 인식 → HC-06 → 차. 11/11 sunbell 노트북과 sunbell 차로 통과했습니다(바닥에서 5번 모두 움직임).
 
 **11/11 시험에서 알게 된 것** (sunbell 차, Claude 도움)
 - 건전지가 약하면 한쪽 바퀴가 돌지 않거나 바닥에서 출발하지 못합니다. 발표 전에 새 AA 건전지로 바꾸고 여분을 챙깁니다.
