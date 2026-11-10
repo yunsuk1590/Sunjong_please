@@ -18,7 +18,7 @@ const char LETTER_STOP    = 'S';  // 멈춤 (대문자)
 // 그 밖의 글자, 줄바꿈(\r, \n)은 무시합니다.
 
 // ===== 바꿀 수 있는 값 =====
-const uint8_t       DRIVE_SPEED   = 200;   // 【임시】 모터 속도(0~255). 차에서 보고 정함
+const uint8_t       DRIVE_SPEED   = 255;   // 모터 속도(0~255). 2026-11-11 sunbell 결정: 바닥에서 200은 출발하지 못함(AA 건전지)
 const unsigned long DRIVE_TIME_MS = 1000;  // 【임시】 F 하나에 앞으로 가는 시간(ms). sunbell과 yunsuk1590이 정함
 const bool RESTART_TIMER_ON_F     = true;  // 【임시】 가는 도중 F 가 또 오면 true = 시간을 다시 잼, false = 무시. sunbell과 yunsuk1590이 정함
 
