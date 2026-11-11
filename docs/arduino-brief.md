@@ -8,7 +8,7 @@
 > - 처음 보는 말은 맨 아래 「9. 낱말 풀이」에 있습니다.
 > - **Claude에게**: yunsuk1590이 「현황 확인하고 다음 할 일 해 줘」라고 하면, 바로 아래 「Claude가 이어서 작업할 때」부터 읽어 주세요. 그 안의 「yunsuk1590에게 질문하며 진행하기」는 꼭 지켜 주세요.
 
-## Claude가 이어서 작업할 때 (yunsuk1590의 Claude용, 2026-11-11 04:10 갱신)
+## Claude가 이어서 작업할 때 (yunsuk1590의 Claude용, 2026-11-11 16:05 갱신)
 
 sunbell이 깃허브의 팀 문서를 고칠 때마다 이 장도 함께 고칩니다. 아래 「지금 상태」가 깃허브와 다르면, 깃허브를 믿고 yunsuk1590에게 알려 주세요.
 
@@ -42,15 +42,17 @@ sunbell이 깃허브의 팀 문서를 고칠 때마다 이 장도 함께 고칩�
 git fetch origin
 git show origin/sunbell/team:docs/arduino-brief.md
 git show origin/sunbell/team:docs/team-decisions.md
+git show origin/sunbell/team:docs/how-it-works.md
 git log --oneline -5 origin/yunsuk1590/arduino
 git show origin/sunbell/arduino:arduino/car_backup/README.md
 ```
 
 - `team-decisions.md`: 정한 것과 정한 사람(「11/11 학과 발표회 시연」 표)
+- `how-it-works.md`: 노트북에서 차까지 글자가 가는 원리(11/11 코드 기준). 차 쪽은 7~8단계입니다. `car.ino`를 바꾸면 이 문서와 어긋나는지 yunsuk1590에게 알려 주세요(문서는 sunbell이 고칩니다)
 - `arduino/car_backup/README.md`의 「6-1」: sunbell 차로 같은 담당자 코드를 시험한 결과(USB, 블루투스, 바닥)
 - 자기 기록은 `yunsuk1590/arduino`의 `arduino/README.md`입니다.
 
-### 지금 상태 (2026-11-11 04:10 기준)
+### 지금 상태 (2026-11-11 04:10 기준. 16:05에 다시 보았을 때 깃허브 브랜치는 바뀌지 않았습니다)
 
 | 항목 | 상태 |
 |---|---|

@@ -14,6 +14,7 @@
 | [팀 결정 기록](team-decisions.md) (`team-decisions.md`) | 팀이 정한 것과 그 이유 |
 | [아두이노 담당 작업 안내](arduino-brief.md) (`arduino-brief.md`) | 아두이노 담당이 할 일과 방법 |
 | [몸 동작 인식 계획서](plan-motion-recognition.md) (`plan-motion-recognition.md`) | 몸 동작 인식(MediaPipe) 쪽의 계획과 진행 |
+| [몸 동작이 차를 움직이는 원리](how-it-works.md) (`how-it-works.md`) | 두 팔을 들면 `F` 한 글자가 차까지 가는 과정을 단계별로 쉽게 설명(11/11 코드 기준). 발표나 부스에서 설명할 때도 씁니다 |
 
 ---
 
