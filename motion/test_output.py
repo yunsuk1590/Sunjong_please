@@ -35,7 +35,7 @@ class Stream:
     def run(self, seconds, arms_up=False, person=True, lean=None):
         for _ in range(round(seconds / STEP)):
             raw = {
-                "ARMS_UP": SimpleNamespace(state="ARMS_UP" if arms_up else None),
+                "ARMS": SimpleNamespace(state="ARMS_UP" if arms_up else None),
                 "LEAN": SimpleNamespace(state=lean),
             }
             stable = self.stabilizer.update(raw, person, self.now)

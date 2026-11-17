@@ -23,14 +23,18 @@ DEFAULTS = {
                           # 10/4 sunbell 확정: 12도에서는 한 팔을 끝까지 펴면 그쪽 어깨가 올라가 반대쪽 LEAN 이 켜졌다.
                           # 15·20·25도를 시험했고 25도는 빡빡해서 22도. 자세한 내용은 docs/gesture-rules.md
     "lean_exit": 7.0,     # 몸 기울이기: 켜진 뒤 이 각도 아래로 돌아오면 꺼짐
+    "up_angle": 50.0,     # 팔 들림: 어깨→손목 선이 수평에서 이 각도(도) 이상 위를 향해야 켜짐(높이 조건에 더해)
+    "up_keep_angle": 30.0,  # 팔 들림: 이미 켜진 뒤에는 이 각도 이상이면 유지. 11/17 sunbell: 수평에서 살짝 올린 팔이 UP 으로 뜸 → 시작값, 웹캠으로 맞춤
     # 떨림 방지(초). 결과가 이 시간 동안 이어져야 바뀐다. 기다리는 만큼 반응이 늦어진다
     # 11/5 sunbell 확정("더 안정적으로"): 굼뜨지 않았고, 바뀐 횟수가 RAW 22·24번 → STABLE 6·6번.
     # 부스 리허설 때 다시 확인한다. 처음 시작값은 0.15/0.25, 0.10/0.15 였다
-    "arms_on": 0.25,      # 두 팔 들기: 켜지려면 이만큼 유지
-    "arms_off": 0.35,     # 두 팔 들기: 꺼지려면 이만큼 사라짐
+    "arms_on": 0.25,      # 팔 동작(두 팔·왼팔·오른팔·T자): 켜지려면 이만큼 유지. 11/17부터 네 동작이 함께 씀
+    "arms_off": 0.35,     # 팔 동작: 꺼지려면 이만큼 사라짐
     "lean_on": 0.20,      # 기울이기: 켜지려면 이만큼 유지
     "lean_off": 0.25,     # 기울이기: 꺼지려면 이만큼 사라짐
     "lost": 0.5,          # 사람이 이만큼 안 보이면 모든 동작을 끈다(더 짧게 안 보이면 그대로 둠). 11/5 sunbell 확정
+    "grace": 0.1,         # 짧은 끊김 봐주기: 바뀌려고 기다리는 동안 이보다 짧게 끊기면 기다린 시간을 이어 감(약 3장)
+                          # 11/17 sunbell: 0.1초로 만들고 웹캠으로 시험해서 확인. 0 이면 11/17 전 방식(끊기면 처음부터)
     # 글자 보내기(11/11 발표회 시연용). 11/8 sunbell 확정. 자세한 내용은 docs/decisions.md
     "port": "",           # 글자를 보낼 포트(예: COM5). 빈칸이면 보내지 않고 화면과 터미널에만 표시한다
     "baud": 9600,         # 통신 속도. HC-06 과 아두이노 쪽 약속이 9600
@@ -44,7 +48,7 @@ MODEL_CHOICES = ["lite", "full"]   # heavy 는 계획에서 뺐다(느리고, se
 
 BACKEND_CHOICES = ["auto", "dshow", "msmf", "avfoundation", "any"]
 
-SEND_ON_CHOICES = ["ARMS_UP", "LEAN_LEFT", "LEAN_RIGHT"]   # gestures/ 의 states. 새 동작을 쓰려면 여기에도 추가한다
+SEND_ON_CHOICES = ["ARMS_UP", "LEFT_UP", "RIGHT_UP", "T_POSE", "LEAN_LEFT", "LEAN_RIGHT"]   # gestures/ 의 states. 새 동작을 쓰려면 여기에도 추가한다
 
 
 def auto_backends():
@@ -89,10 +93,15 @@ def parse_args(argv=None):
     parser.add_argument("--num-poses", type=int, default=DEFAULTS["num_poses"], help="한 번에 찾을 최대 사람 수")
     parser.add_argument("--lean-enter", type=float, default=DEFAULTS["lean_enter"], help="기울이기 켜짐 각도(도)")
     parser.add_argument("--lean-exit", type=float, default=DEFAULTS["lean_exit"], help="기울이기 꺼짐 각도(도)")
-    for name, text in (("arms_on", "두 팔 들기 켜짐"), ("arms_off", "두 팔 들기 꺼짐"),
-                       ("lean_on", "기울이기 켜짐"), ("lean_off", "기울이기 꺼짐"), ("lost", "사람 없음 처리")):
+    parser.add_argument("--up-angle", type=float, default=DEFAULTS["up_angle"], help="팔 들림 켜짐 각도(수평에서 위로, 도)")
+    parser.add_argument("--up-keep-angle", type=float, default=DEFAULTS["up_keep_angle"], help="팔 들림 유지 각도(도)")
+    for name, text in (("arms_on", "팔 동작 켜짐"), ("arms_off", "팔 동작 꺼짐"),
+                       ("lean_on", "기울이기 켜짐"), ("lean_off", "기울이기 꺼짐"), ("lost", "사람 없음 처리"),
+                       ("grace", "짧은 끊김 봐주기")):
         parser.add_argument("--" + name.replace("_", "-"), type=float, default=DEFAULTS[name],
-                            help=f"떨림 방지: {text} 대기 시간(초)")
+                            help=f"떨림 방지: {text} 시간(초)")
+    parser.add_argument("--compare-grace", action="store_true",
+                        help="시험용: 같은 결과를 끊김 봐주기 끔으로도 걸러서, 끝날 때 바뀐 횟수를 나란히 보여 줌")
     parser.add_argument("--port", default=DEFAULTS["port"], help="글자를 보낼 포트, 예: COM5. 없으면 화면에만 표시")
     parser.add_argument("--baud", type=int, default=DEFAULTS["baud"], help="통신 속도")
     parser.add_argument("--send-on", choices=SEND_ON_CHOICES, default=DEFAULTS["send_on"],

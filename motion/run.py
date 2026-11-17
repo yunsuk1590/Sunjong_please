@@ -16,6 +16,7 @@
 끄기: q 키, Esc 키, 창 닫기(X), 터미널에서 Ctrl+C
 """
 
+import copy
 import sys
 import time
 from collections import deque
@@ -66,13 +67,18 @@ def window_closed(state):
     return state["seen"]
 
 
-def print_changes(raw_changes, stable_changes):
-    """떨림 방지 전(RAW)과 후(STABLE)에 동작 상태가 몇 번 바뀌었는지."""
+def print_changes(raw_changes, stable_changes, no_grace_changes=None):
+    """떨림 방지 전(RAW)과 후(STABLE)에 동작 상태가 몇 번 바뀌었는지.
+
+    no_grace_changes 가 있으면(--compare-grace) 같은 RAW 를 「끊김 봐주기 끔」으로 거른 횟수도 함께 보여 준다.
+    """
     for name in raw_changes.counts:
         print(
             f"  {name}: 원래 결과(RAW) {raw_changes.counts[name]}번 바뀜"
             f" → 떨림 방지 후(STABLE) {stable_changes.counts.get(name, 0)}번"
         )
+        if no_grace_changes is not None:
+            print(f"    비교: 같은 RAW 를 끊김 봐주기 끔(grace 0)으로 걸렀을 때 {no_grace_changes.counts.get(name, 0)}번")
 
 
 def print_summary(args, camera, loop_frames, started, latency, infer):
@@ -120,8 +126,14 @@ def main():
     stabilizers = {0: make_stabilizer(args)}
     timeline = deque()
     raw_changes, stable_changes = ChangeCounter(), ChangeCounter()
+    # --compare-grace: 같은 RAW 를 「끊김 봐주기 끔」으로도 걸러서 횟수만 비교한다(화면과 글자 보내기에는 안 쓴다)
+    compare_stabilizer, no_grace_changes = None, None
+    if args.compare_grace:
+        compare_args = copy.copy(args)
+        compare_args.grace = 0.0
+        compare_stabilizer, no_grace_changes = make_stabilizer(compare_args), ChangeCounter()
     wait_text = (
-        f"WAIT arms {args.arms_on:.2f}/{args.arms_off:.2f}s  lean {args.lean_on:.2f}/{args.lean_off:.2f}s"
+        f"WAIT arms {args.arms_on:.2f}/{args.arms_off:.2f}s  grace {args.grace:.2f}s"
         f"  lost {args.lost:.1f}s"
     )
     loop_rate = RateMeter()
@@ -157,6 +169,8 @@ def main():
                 output.update(stable, captured_at)
                 raw_changes.update(raw)
                 stable_changes.update(stable)
+                if compare_stabilizer is not None:
+                    no_grace_changes.update(compare_stabilizer.update(results, bool(people), captured_at))
                 timeline.append((captured_at, raw, dict(stable)))
                 while timeline and captured_at - timeline[0][0] > TIMELINE_SECONDS + 0.5:
                     timeline.popleft()
@@ -164,8 +178,9 @@ def main():
                 raw_active = [s for s in raw.values() if s]
                 stable_active = [s for s in stable.values() if s]
                 draw_timeline(view, timeline, list(results), captured_at, TIMELINE_SECONDS)
-                draw_tilt_gauge(view, results["LEAN"].amount, args.lean_enter, args.lean_exit,
-                                active=stable.get("LEAN") is not None)
+                if "LEAN" in results:   # 기울이기를 목록에 넣었을 때만 막대를 그린다
+                    draw_tilt_gauge(view, results["LEAN"].amount, args.lean_enter, args.lean_exit,
+                                    active=stable.get("LEAN") is not None)
                 draw_label(view, " + ".join(stable_active) if stable_active else "NONE",
                            GREEN if stable_active else GRAY)
 
@@ -201,7 +216,7 @@ def main():
         cv2.destroyAllWindows()
         print_summary(args, camera, loop_frames, started, latency, infer)
         if loop_frames:
-            print_changes(raw_changes, stable_changes)
+            print_changes(raw_changes, stable_changes, no_grace_changes)
     return 0
 
 

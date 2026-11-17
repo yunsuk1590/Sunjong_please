@@ -12,7 +12,7 @@ from collections import deque
 
 from .arms_up import ArmsUp
 from .base import Frame, Gesture, Result
-from .lean import Lean
+from .lean import Lean  # noqa: F401  지금은 목록에서 뺐다(아래 make_gestures)
 
 HISTORY_SECONDS = 2.0   # 반복 동작 판정에 쓸 수 있도록 최근 몇 초를 기억할지
 
@@ -20,8 +20,10 @@ HISTORY_SECONDS = 2.0   # 반복 동작 판정에 쓸 수 있도록 최근 몇 �
 def make_gestures(args):
     """판정할 동작 목록. 새 동작은 여기에 한 줄 추가한다."""
     return [
-        ArmsUp(),
-        Lean(enter=args.lean_enter, exit=args.lean_exit),
+        ArmsUp(up_angle=args.up_angle, up_keep_angle=args.up_keep_angle),
+        # 기울이기는 한 팔 들기와 헷갈려서 이음제에서는 쓰지 않는다(11/17 sunbell: 목록에서 빼고 코드는 둠).
+        # 다시 쓰려면 아래 줄의 # 을 지운다.
+        # Lean(enter=args.lean_enter, exit=args.lean_exit),
     ]
 
 

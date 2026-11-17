@@ -112,6 +112,9 @@ def draw_tilt_gauge(image, tilt, enter, exit, active=False, limit=30.0):
 
 STATE_COLORS = {
     "ARMS_UP": GREEN,
+    "LEFT_UP": (230, 150, 40),       # 파랑
+    "RIGHT_UP": (40, 150, 255),      # 주황
+    "T_POSE": (200, 80, 200),        # 보라
     "LEAN_LEFT": (230, 150, 40),     # 파랑
     "LEAN_RIGHT": (40, 150, 255),    # 주황
 }
