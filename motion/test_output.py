@@ -163,6 +163,17 @@ class Controller(unittest.TestCase):
         self.assertEqual(s.letters[-1], "D")
         self.assertEqual(set(s.letters), {"A", "D"})
 
+    def test_one_laptop_can_send_all_four_letters_one_at_a_time(self):
+        """노트북 1대로 시험할 때: --letters 로 네 동작을 모두 켠다. 동작은 한 번에 하나만 켜진다."""
+        s = Stream(letters={**self.P1, **self.P2}, repeat=0.15)
+        for state in ("ARMS_UP", "T_POSE", "LEFT_UP", "RIGHT_UP"):
+            s.run(1.0, state=state)
+            s.run(1.0)
+        order = [letter for i, letter in enumerate(s.letters) if i == 0 or letter != s.letters[i - 1]]
+        self.assertEqual(order, ["W", "S", "A", "D"])
+        for earlier, later in zip(s.times, s.times[1:]):
+            self.assertGreaterEqual(later - earlier, 0.14)     # 두 글자가 같은 때에 겹쳐 나가지 않는다
+
     def test_gesture_of_the_other_role_sends_nothing(self):
         s = Stream(letters=self.P1, repeat=0.15)
         s.run(2.0, state="LEFT_UP")
