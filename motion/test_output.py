@@ -321,8 +321,11 @@ class SerialLinkTest(Quiet):
             first.broken = True
             self.assertTrue(wait_until(lambda: not ports and first.closed))
 
-    def test_letters_are_not_queued_only_the_newest_waits(self):
-        """11/19: 반복해서 보낼 때도 쌓지 않는다. 포트가 막혀 있는 동안 온 글자는 가장 최근 하나만 남는다."""
+    def test_letters_are_not_queued_one_per_kind_waits(self):
+        """11/19: 반복해서 보낼 때도 쌓지 않는다. 포트가 막혀 있는 동안 온 글자는 글자 종류마다 하나씩만 남는다.
+
+        P1 의 W 와 P2 의 A 가 거의 동시에 와도 서로를 지우지 않는다(노트북 2대 합치기).
+        """
         release = threading.Event()
         entered = threading.Event()
 
@@ -338,12 +341,12 @@ class SerialLinkTest(Quiet):
         self.assertTrue(wait_until(lambda: link.state == "OPEN"))
         link.send("W")
         self.assertTrue(entered.wait(2))
-        for letter in "ASD":             # 막힌 동안 세 글자가 더 온다
+        for letter in "AASDDDA":         # 막힌 동안 같은 글자가 여러 번 더 온다
             self.assertTrue(link.send(letter))
         release.set()
         self.assertTrue(wait_until(lambda: len(port.written) == 2))
         time.sleep(0.05)
-        self.assertEqual(port.written, [b"W", b"D"])
+        self.assertEqual(port.written, [b"W", b"ASD"])    # 같은 글자는 합쳐지고, 다른 글자는 서로 지워지지 않는다
 
     def test_repeated_letter_is_printed_once_and_write_time_is_measured(self):
         port = FakePort()

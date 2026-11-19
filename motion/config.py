@@ -48,6 +48,7 @@ DEFAULTS = {
     "letters": "",        # 동작별 글자를 직접 정함. 예: ARMS_UP=W,T_POSE=S. 적으면 역할의 글자 표 대신 쓴다
     "send_mode": "",      # once = 동작이 켜지는 순간 한 번(리듬게임용, 11/11 방식) / repeat = 켜져 있는 동안 반복(컨트롤러식)
                           # 빈칸이면 역할이나 글자 표를 적었을 때 repeat, 아니면 once
+    "listen_port": 5005,  # P1 노트북이 P2 의 글자를 받는 UDP 포트(--listen 만 적었을 때). 11/19 sunbell 결정: 같은 와이파이에서 UDP
     "repeat_seconds": 0.15,   # repeat 일 때 같은 글자를 이 간격(초)마다 다시 보냄. 차는 약 0.3초 글자가 없으면 입력을 끈다(아두이노 세션 설계)
 }
 
@@ -150,10 +151,23 @@ def parse_args(argv=None):
                         help="once = 켜지는 순간 한 번 / repeat = 켜져 있는 동안 반복. 안 적으면 역할이나 글자 표가 있을 때 repeat")
     parser.add_argument("--repeat-seconds", type=float, default=DEFAULTS["repeat_seconds"],
                         help="repeat 일 때 같은 글자를 다시 보내는 간격(초)")
+    parser.add_argument("--listen", type=int, nargs="?", const=DEFAULTS["listen_port"], default=None, metavar="PORT",
+                        help="P1 노트북: P2 노트북이 UDP 로 보낸 W A S D 를 받아 차로 넘김. 포트를 안 적으면 5005")
+    parser.add_argument("--send-to", default="", metavar="HOST[:PORT]",
+                        help="P2 노트북: 차 포트 대신 P1 노트북의 주소로 UDP 로 글자를 보냄. 예: 192.168.0.12 (--port 와 같이 쓸 수 없음)")
+    parser.add_argument("--allow-from", default="", metavar="IP[,IP]",
+                        help="P1 노트북: 이 주소에서 온 글자만 받음. 안 적으면 아무 기기나 받음(학교 와이파이에서는 적을 것)")
     parser.set_defaults(mirror=DEFAULTS["mirror"])
     args = parser.parse_args(argv)
     if args.repeat_seconds <= 0:
         parser.error("--repeat-seconds 는 0보다 커야 합니다")
+    if args.send_to and args.port:
+        parser.error("--port 와 --send-to 는 같이 쓸 수 없습니다. 차와 연결된 노트북(P1)은 --port, P2 노트북은 --send-to 를 씁니다")
+    if args.send_to and args.listen is not None:
+        parser.error("--send-to 와 --listen 은 같이 쓸 수 없습니다. 받는 쪽(P1)과 보내는 쪽(P2)은 서로 다른 노트북입니다")
+    if args.listen is not None and not 0 <= args.listen < 65536:
+        parser.error("--listen 포트는 0~65535 사이 숫자여야 합니다")
+    args.allow_from = [a.strip() for a in args.allow_from.split(",") if a.strip()]
     # 시도할 방식 목록. 직접 고르면 그 방식 하나만 쓴다
     args.backends = auto_backends() if args.backend == "auto" else [args.backend]
     return args

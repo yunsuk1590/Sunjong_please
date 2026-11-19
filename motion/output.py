@@ -18,14 +18,12 @@ import time
 from importlib.util import find_spec
 
 from config import ROLE_LETTERS
+from netlink import PrintGate, UdpLink, UdpListener, parse_address   # PrintGate 는 netlink 에 있다(순환 import 를 피하려고)
 
 RETRY_SECONDS = 3.0    # 포트가 안 열리거나 끊기면 이만큼 기다렸다가 다시 연다
 WATCH_SECONDS = 0.5    # 보낼 글자가 없을 때 이만큼마다 포트가 살아 있는지 본다
 WRITE_TIMEOUT = 2.0    # 글자 하나를 보내는 데 이보다 오래 걸리면 끊긴 것으로 본다
 CLOSE_WAIT = 3.0       # 끌 때 작업 줄을 이만큼만 기다린다. 포트가 응답하지 않아도 프로그램은 꺼진다
-
-
-REPEAT_PRINT_GAP = 0.5   # 같은 글자를 반복해서 보낼 때, 이보다 오래 쉬었다 보내면 새로 누른 것으로 보고 터미널에 한 줄 찍는다
 
 
 class LetterTrigger:
@@ -61,21 +59,6 @@ class LetterTrigger:
             self._next_repeat = now + self.repeat_seconds
         self.current = current
         return letter
-
-
-class PrintGate:
-    """반복해서 보내는 글자를 터미널에 매번 찍지 않게 한다. 글자가 바뀌었거나 한참 쉬었다 보낼 때만 찍는다."""
-
-    def __init__(self, gap=REPEAT_PRINT_GAP):
-        self.gap = gap
-        self._letter = None
-        self._time = 0.0
-
-    def should_print(self, letter, now=None):
-        now = time.monotonic() if now is None else now
-        show = letter != self._letter or now - self._time > self.gap
-        self._letter, self._time = letter, now
-        return show
 
 
 class FakeLink:
@@ -126,7 +109,7 @@ class SerialLink:
         self._send_gate = PrintGate()
         self._drop_gate = PrintGate(gap=2.0)
         self._lock = threading.Lock()
-        self._pending = ""           # 보낼 글자 1개. 쌓지 않는다. 새 글자가 오면 옛 글자를 덮어쓴다
+        self._pending = {}           # 보낼 글자. 글자 종류마다 하나씩만 남기고 쌓지 않는다(같은 글자가 또 오면 합쳐진다)
         self._final = ""             # 끌 때 마지막으로 보낼 글자
         self._wake = threading.Event()
         self._stop = threading.Event()
@@ -146,7 +129,7 @@ class SerialLink:
             self._drop(letter, "포트가 열려 있지 않습니다")
             return False
         with self._lock:
-            self._pending = letter
+            self._pending[letter] = True
         self._wake.set()
         return True
 
@@ -192,7 +175,7 @@ class SerialLink:
             self._report_error(f"{self.port} 포트를 열지 못했습니다. {self.retry_seconds:.0f}초마다 다시 시도합니다: {e}")
             return None
         with self._lock:
-            self._pending = ""    # 끊기기 전에 받은 글자를 연결된 뒤에 보내지 않는다
+            self._pending.clear()    # 끊기기 전에 받은 글자를 연결된 뒤에 보내지 않는다
         self._last_error = None
         self.state = "OPEN"
         print(f"[보내기] {self.port} 포트를 열었습니다(통신 속도 {self.baud}).")
@@ -200,8 +183,9 @@ class SerialLink:
 
     def _send_or_watch(self, port):
         with self._lock:
-            letter, self._pending = self._pending, ""
-        if not letter:
+            letters = list(self._pending)    # 들어온 순서대로. 종류마다 하나씩이라 많아야 몇 글자이다
+            self._pending.clear()
+        if not letters:
             # 보낼 글자가 없으면 포트가 살아 있는지 본다. 보드가 보낸 글자는 쓰지 않으니 읽어서 버린다
             waiting = port.in_waiting
             if waiting:
@@ -209,14 +193,16 @@ class SerialLink:
             return
         started = time.perf_counter()
         try:
-            port.write(letter.encode("ascii"))
+            port.write("".join(letters).encode("ascii"))
         except OSError:
-            self._drop(letter, "보내는 도중에 연결이 끊겼습니다")
+            for letter in letters:
+                self._drop(letter, "보내는 도중에 연결이 끊겼습니다")
             raise
         self.slowest_write_ms = max(self.slowest_write_ms, (time.perf_counter() - started) * 1000)
-        self.sent_count += 1
-        if self._send_gate.should_print(letter):
-            print(f"[보내기] {letter} 보냄 → {self.port}")
+        self.sent_count += len(letters)
+        for letter in letters:
+            if self._send_gate.should_print(letter):
+                print(f"[보내기] {letter} 보냄 → {self.port}")
 
     def _lost(self, port, error):
         self.state = "ERROR"
@@ -251,11 +237,12 @@ class SerialLink:
 class LetterOutput:
     """run.py 가 부르는 창구. 글자를 보낼 순간을 찾아 보내고, 화면에 보여 줄 한 줄을 만든다."""
 
-    def __init__(self, link, trigger, quit_letter="", mode_text=""):
+    def __init__(self, link, trigger, quit_letter="", mode_text="", net=None):
         self.link = link
         self.trigger = trigger
         self.quit_letter = quit_letter
         self.mode_text = mode_text   # 화면에 보여 줄 역할·방식(예: "P1 repeat")
+        self.net = net               # P1 노트북에서 P2 의 글자를 받는 UdpListener. 없으면 None
         self._last = None    # (화면에 보여 줄 말, 시각)
 
     def update(self, stable, now):
@@ -273,14 +260,31 @@ class LetterOutput:
             text += f"  last {what} {now - when:.1f}s ago"
         return text
 
+    def net_status_text(self):
+        """P1 노트북에서 P2 글자를 받는 상태 한 줄. 받는 쪽이 아니면 빈칸."""
+        return self.net.status_text() if self.net is not None else ""
+
     def close(self):
+        if self.net is not None:
+            self.net.close()      # 받기를 먼저 멈춰서, 끄는 중에 P2 글자가 차 포트로 넘어가지 않게 한다
         self.link.close(self.quit_letter)
         print(f"[보내기] 보낸 글자 {self.link.sent_count}번, 못 보내고 버린 글자 {self.link.dropped}번")
         if self.link.slowest_write_ms:
             print(f"[보내기] 글자 하나를 포트에 쓰는 데 가장 오래 걸린 시간 {self.link.slowest_write_ms:.1f} ms")
+        if self.net is not None:
+            print(f"[받기] P2 쪽에서 받은 글자 {self.net.received}번, 버린 것 {self.net.ignored}번, 허락하지 않은 주소 {self.net.blocked}번")
 
 
 def make_link(args):
+    if args.send_to:
+        try:
+            host, port = parse_address(args.send_to)
+            link = UdpLink(host, port)
+        except (ValueError, OSError) as error:
+            print(f"[보내기] 주소 {args.send_to} 를 쓸 수 없어서 글자를 보내지 않고 화면과 터미널에만 표시합니다: {error}")
+            return FakeLink("bad address (fake)")
+        print(f"[보내기] {host}:{port} 로 UDP 글자를 보냅니다(P1 노트북에서 --listen 이 켜져 있어야 합니다).")
+        return link
     if not args.port:
         print("[보내기] 포트를 적지 않아서 글자를 보내지 않고 화면과 터미널에만 표시합니다. (보내려면 예: run.bat --port COM5)")
         return FakeLink("no port (fake)")
@@ -296,7 +300,9 @@ def resolve_letters(args):
 
     우선순위: --letters(직접 적은 표) > --role(역할 표) > 11/11 방식(--send-on 동작 하나가 --letter-on 글자 하나).
     방식은 --send-mode 를 적으면 그대로, 안 적으면 역할이나 글자 표가 있을 때 repeat, 없으면 once.
-    끌 때 글자는 --letter-quit 를 적으면 그대로, 안 적으면 11/11 방식은 S, 역할이나 글자 표는 X.
+    끌 때 글자는 --letter-quit 를 적으면 그대로, 안 적으면 11/11 방식은 S, 역할이나 글자 표는 X,
+    P1 노트북으로 보내는 쪽(--send-to)은 없음. P2 가 끌 때 X 를 보내면 차의 앞뒤·좌우를 모두 꺼서 P1 의 입력까지 끊기 때문이고,
+    P2 가 끊겨도 차가 0.3초 뒤에 그 입력을 스스로 끄므로 안 보내도 안전하다.
     (새 약속에서 S 는 「뒤로」라서 끌 때 S 를 보내면 차가 뒤로 간다)
     """
     if args.letters:
@@ -306,13 +312,36 @@ def resolve_letters(args):
     else:
         letters, name = {args.send_on: args.letter_on}, ""
     mode = args.send_mode or ("repeat" if name else "once")
-    quit_letter = args.letter_quit if args.letter_quit is not None else ("X" if name else "S")
+    if args.letter_quit is not None:
+        quit_letter = args.letter_quit
+    elif args.send_to:
+        quit_letter = ""
+    else:
+        quit_letter = "X" if name else "S"
     shown = " ".join(filter(None, [name, mode if name else "", "/".join(letters.values()) if name else ""]))
     return letters, mode, quit_letter, shown
+
+
+def make_listener(args, link):
+    """P1 노트북이면(--listen) P2 가 보낸 W A S D 를 받아 같은 포트로 넘기는 받기를 켠다. 아니면 None."""
+    if args.listen is None:
+        return None
+    try:
+        listener = UdpListener(args.listen, link.send, args.allow_from)
+    except OSError as error:
+        print(f"[받기] 포트 {args.listen} 를 열지 못했습니다. 다른 프로그램이 쓰고 있을 수 있습니다: {error}")
+        return None
+    print(f"[받기] P2 노트북의 글자를 UDP 포트 {listener.port} 에서 받아 차로 넘깁니다. W A S D 만 넘기고 나머지는 버립니다.")
+    if args.allow_from:
+        print(f"[받기] 허락한 주소: {', '.join(sorted(args.allow_from))}")
+    else:
+        print("[받기] 주의: 같은 와이파이의 아무 기기가 보낸 글자나 받아서 차로 넘깁니다. 학교 와이파이에서는 --allow-from 으로 P2 노트북의 주소를 적는 것이 안전합니다.")
+    return listener
 
 
 def make_output(args):
     letters, mode, quit_letter, shown = resolve_letters(args)
     repeat = args.repeat_seconds if mode == "repeat" else 0.0
     trigger = LetterTrigger(letters, args.letter_off, repeat)
-    return LetterOutput(make_link(args), trigger, quit_letter, shown)
+    link = make_link(args)
+    return LetterOutput(link, trigger, quit_letter, shown, make_listener(args, link))

@@ -199,6 +199,7 @@ def main():
                     "RAW: " + (" + ".join(raw_active) if raw_active else "NONE"),
                     wait_text,
                     output.status_text(now),
+                    *([output.net_status_text()] if output.net is not None else []),   # P1 노트북: P2 글자를 받는 상태
                     "q: quit",
                 ]
                 draw_lines(view, lines)
