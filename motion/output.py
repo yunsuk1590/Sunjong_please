@@ -1,6 +1,9 @@
-"""몸 동작 결과를 글자 하나로 밖에 보낸다(11/11 학과 발표회 시연용).
+"""몸 동작 결과를 글자 하나로 밖에 보낸다(11/11 학과 발표회 시연용, 11/19 협동 레이싱용으로 넓힘).
 
-흐름: 떨림 방지를 거친 결과(STABLE) → 동작이 켜지는 순간을 찾음 → 글자 하나를 COM 포트로 보냄
+흐름: 떨림 방지를 거친 결과(STABLE) → 동작에 맞는 글자를 고름 → 글자 하나를 COM 포트로 보냄
+- once(11/11 방식, 리듬게임용): 동작이 켜지는 순간 한 번만 보낸다.
+- repeat(컨트롤러식, 협동 레이싱): 동작이 켜져 있는 동안 같은 글자를 짧은 간격마다 다시 보낸다.
+  차는 약 0.3초 글자가 없으면 그 입력을 끄므로, 팔을 내리면 보내지 않는 것만으로 차가 선다.
 
 - 포트를 적지 않으면(--port 없음) 아무 데도 보내지 않고 화면과 터미널에만 표시한다(가짜 보내기).
 - 블루투스 포트는 여는 데 몇 초 걸릴 수 있어서, 따로 도는 작업 줄에서 열고 보낸다. 그래서 화면이 멈추지 않는다.
@@ -11,7 +14,10 @@
 """
 
 import threading
+import time
 from importlib.util import find_spec
+
+from config import ROLE_LETTERS
 
 RETRY_SECONDS = 3.0    # 포트가 안 열리거나 끊기면 이만큼 기다렸다가 다시 연다
 WATCH_SECONDS = 0.5    # 보낼 글자가 없을 때 이만큼마다 포트가 살아 있는지 본다
@@ -19,33 +25,57 @@ WRITE_TIMEOUT = 2.0    # 글자 하나를 보내는 데 이보다 오래 걸리�
 CLOSE_WAIT = 3.0       # 끌 때 작업 줄을 이만큼만 기다린다. 포트가 응답하지 않아도 프로그램은 꺼진다
 
 
+REPEAT_PRINT_GAP = 0.5   # 같은 글자를 반복해서 보낼 때, 이보다 오래 쉬었다 보내면 새로 누른 것으로 보고 터미널에 한 줄 찍는다
+
+
 class LetterTrigger:
     """STABLE 결과를 보고 글자를 보낼 순간을 찾는다.
 
-    state 가 꺼짐에서 켜짐으로 바뀌는 순간에 on_letter 를, 켜짐에서 꺼짐으로 바뀌는 순간에 off_letter 를 고른다.
-    off_letter 가 빈칸이면 꺼질 때는 아무것도 보내지 않는다.
+    letters: {동작 상태 이름: 글자}. 예) {"ARMS_UP": "F"} 또는 {"ARMS_UP": "W", "T_POSE": "S"}
+    - 동작이 꺼짐에서 켜짐으로 바뀌는 순간(또는 다른 동작으로 바로 바뀐 순간)에 그 동작의 글자를 고른다.
+    - 켜짐에서 꺼짐으로 바뀌는 순간에는 off_letter 를 고른다. off_letter 가 빈칸이면 아무것도 보내지 않는다.
+    - repeat_seconds 가 0보다 크면(컨트롤러식, 11/19) 동작이 켜져 있는 동안 그 간격마다 같은 글자를 다시 고른다.
+      0이면 켜지는 순간 한 번만 고른다(11/11 방식, 리듬게임용으로 남겨 둠).
 
     떨림 방지가 상태를 끄면 다음에 켜질 때 다시 글자를 고른다. 그래서 아래 두 경우에도 글자가 나간다.
     - 프로그램을 켤 때 이미 팔을 들고 있었던 경우
     - 팔을 든 채로 사람을 lost 초(0.5초)보다 오래 놓쳤다가 다시 잡은 경우
     """
 
-    def __init__(self, state, on_letter, off_letter=""):
-        self.state = state
-        self.on_letter = on_letter
+    def __init__(self, letters, off_letter="", repeat_seconds=0.0):
+        self.letters = dict(letters)
         self.off_letter = off_letter
-        self.active = False
+        self.repeat_seconds = repeat_seconds
+        self.current = ""          # 지금 켜져 있는 동작의 글자. 없으면 빈칸
+        self._next_repeat = 0.0
 
-    def update(self, stable):
+    def update(self, stable, now=0.0):
         """stable: {동작 이름: 인정된 상태 또는 None}. 지금 보낼 글자를 돌려준다. 없으면 빈칸."""
-        active = self.state in stable.values()
+        current = next((self.letters[s] for s in stable.values() if s in self.letters), "")
         letter = ""
-        if active and not self.active:
-            letter = self.on_letter
-        elif self.active and not active:
-            letter = self.off_letter
-        self.active = active
+        if current != self.current:
+            letter = current or self.off_letter
+            self._next_repeat = now + self.repeat_seconds
+        elif current and self.repeat_seconds > 0 and now >= self._next_repeat:
+            letter = current
+            self._next_repeat = now + self.repeat_seconds
+        self.current = current
         return letter
+
+
+class PrintGate:
+    """반복해서 보내는 글자를 터미널에 매번 찍지 않게 한다. 글자가 바뀌었거나 한참 쉬었다 보낼 때만 찍는다."""
+
+    def __init__(self, gap=REPEAT_PRINT_GAP):
+        self.gap = gap
+        self._letter = None
+        self._time = 0.0
+
+    def should_print(self, letter, now=None):
+        now = time.monotonic() if now is None else now
+        show = letter != self._letter or now - self._time > self.gap
+        self._letter, self._time = letter, now
+        return show
 
 
 class FakeLink:
@@ -55,13 +85,16 @@ class FakeLink:
         self.note = note
         self.sent_count = 0
         self.dropped = 0
+        self.slowest_write_ms = 0.0
+        self._gate = PrintGate()
 
     def status_text(self):
         return f"OUTPUT {self.note}"
 
     def send(self, letter):
         self.sent_count += 1
-        print(f"[가짜 보내기] {letter}")
+        if self._gate.should_print(letter):
+            print(f"[가짜 보내기] {letter}")
         return True
 
     def close(self, final_letter=""):
@@ -88,7 +121,10 @@ class SerialLink:
         self.state = "connecting"    # connecting / OPEN / ERROR
         self.sent_count = 0
         self.dropped = 0
+        self.slowest_write_ms = 0.0   # 글자 하나를 포트에 쓰는 데 가장 오래 걸린 시간(ms). 블루투스가 느린지 볼 때 쓴다
         self._last_error = None
+        self._send_gate = PrintGate()
+        self._drop_gate = PrintGate(gap=2.0)
         self._lock = threading.Lock()
         self._pending = ""           # 보낼 글자 1개. 쌓지 않는다. 새 글자가 오면 옛 글자를 덮어쓴다
         self._final = ""             # 끌 때 마지막으로 보낼 글자
@@ -125,7 +161,8 @@ class SerialLink:
     def _drop(self, letter, reason):
         with self._lock:
             self.dropped += 1
-        print(f"[보내기] {letter} 를 보내지 못하고 버렸습니다: {reason}")
+        if self._drop_gate.should_print(f"{letter}{reason}"):   # 반복해서 보낼 때 같은 줄이 계속 나오지 않게 한다
+            print(f"[보내기] {letter} 를 보내지 못하고 버렸습니다: {reason}")
 
     def _run(self):
         port = None
@@ -170,13 +207,16 @@ class SerialLink:
             if waiting:
                 port.read(waiting)
             return
+        started = time.perf_counter()
         try:
             port.write(letter.encode("ascii"))
         except OSError:
             self._drop(letter, "보내는 도중에 연결이 끊겼습니다")
             raise
+        self.slowest_write_ms = max(self.slowest_write_ms, (time.perf_counter() - started) * 1000)
         self.sent_count += 1
-        print(f"[보내기] {letter} 보냄 → {self.port}")
+        if self._send_gate.should_print(letter):
+            print(f"[보내기] {letter} 보냄 → {self.port}")
 
     def _lost(self, port, error):
         self.state = "ERROR"
@@ -211,20 +251,23 @@ class SerialLink:
 class LetterOutput:
     """run.py 가 부르는 창구. 글자를 보낼 순간을 찾아 보내고, 화면에 보여 줄 한 줄을 만든다."""
 
-    def __init__(self, link, trigger, quit_letter=""):
+    def __init__(self, link, trigger, quit_letter="", mode_text=""):
         self.link = link
         self.trigger = trigger
         self.quit_letter = quit_letter
+        self.mode_text = mode_text   # 화면에 보여 줄 역할·방식(예: "P1 repeat")
         self._last = None    # (화면에 보여 줄 말, 시각)
 
     def update(self, stable, now):
-        letter = self.trigger.update(stable)
+        letter = self.trigger.update(stable, now)
         if letter:
             sent = self.link.send(letter)
             self._last = (letter if sent else f"{letter} dropped", now)
 
     def status_text(self, now):
         text = f"{self.link.status_text()}  sent {self.link.sent_count}  dropped {self.link.dropped}"
+        if self.mode_text:
+            text += f"  [{self.mode_text}]"
         if self._last is not None:
             what, when = self._last
             text += f"  last {what} {now - when:.1f}s ago"
@@ -233,6 +276,8 @@ class LetterOutput:
     def close(self):
         self.link.close(self.quit_letter)
         print(f"[보내기] 보낸 글자 {self.link.sent_count}번, 못 보내고 버린 글자 {self.link.dropped}번")
+        if self.link.slowest_write_ms:
+            print(f"[보내기] 글자 하나를 포트에 쓰는 데 가장 오래 걸린 시간 {self.link.slowest_write_ms:.1f} ms")
 
 
 def make_link(args):
@@ -246,6 +291,28 @@ def make_link(args):
     return SerialLink(args.port, args.baud)
 
 
+def resolve_letters(args):
+    """어떤 동작이 어떤 글자를 보낼지 정한다. 돌려주는 값: ({동작: 글자}, 방식 once/repeat, 끌 때 글자, 화면 표시).
+
+    우선순위: --letters(직접 적은 표) > --role(역할 표) > 11/11 방식(--send-on 동작 하나가 --letter-on 글자 하나).
+    방식은 --send-mode 를 적으면 그대로, 안 적으면 역할이나 글자 표가 있을 때 repeat, 없으면 once.
+    끌 때 글자는 --letter-quit 를 적으면 그대로, 안 적으면 11/11 방식은 S, 역할이나 글자 표는 X.
+    (새 약속에서 S 는 「뒤로」라서 끌 때 S 를 보내면 차가 뒤로 간다)
+    """
+    if args.letters:
+        letters, name = args.letters, "custom"
+    elif args.role:
+        letters, name = ROLE_LETTERS[args.role], args.role
+    else:
+        letters, name = {args.send_on: args.letter_on}, ""
+    mode = args.send_mode or ("repeat" if name else "once")
+    quit_letter = args.letter_quit if args.letter_quit is not None else ("X" if name else "S")
+    shown = " ".join(filter(None, [name, mode if name else "", "/".join(letters.values()) if name else ""]))
+    return letters, mode, quit_letter, shown
+
+
 def make_output(args):
-    trigger = LetterTrigger(args.send_on, args.letter_on, args.letter_off)
-    return LetterOutput(make_link(args), trigger, args.letter_quit)
+    letters, mode, quit_letter, shown = resolve_letters(args)
+    repeat = args.repeat_seconds if mode == "repeat" else 0.0
+    trigger = LetterTrigger(letters, args.letter_off, repeat)
+    return LetterOutput(make_link(args), trigger, quit_letter, shown)

@@ -41,14 +41,30 @@ DEFAULTS = {
     "send_on": "ARMS_UP", # 이 동작이 켜지는 순간 letter_on 을 보낸다
     "letter_on": "F",     # 앞으로
     "letter_off": "",     # 동작이 꺼지는 순간 보낼 글자. 빈칸이면 보내지 않는다(차가 스스로 멈춘다)
-    "letter_quit": "S",   # 프로그램을 끌 때 한 번 보낸다. 멈춤
+    "letter_quit": None,  # 프로그램을 끌 때 한 번 보낸다. 안 적으면 11/11 방식(역할 없음)은 S(멈춤), 역할(P1/P2)은 X(11/19)
+                          # 11/19 협동 레이싱에서 S 는 「뒤로」라서 역할을 고르면 S 를 끌 때 보내지 않는다
+    # 협동 레이싱(11/19 sunbell 결정). 노트북 한 대에 사람 한 명이 한 역할을 맡는다
+    "role": "",           # P1 = 두 팔 들기 W(앞), T자 S(뒤) / P2 = 왼팔 A(왼쪽), 오른팔 D(오른쪽). 빈칸이면 11/11 방식
+    "letters": "",        # 동작별 글자를 직접 정함. 예: ARMS_UP=W,T_POSE=S. 적으면 역할의 글자 표 대신 쓴다
+    "send_mode": "",      # once = 동작이 켜지는 순간 한 번(리듬게임용, 11/11 방식) / repeat = 켜져 있는 동안 반복(컨트롤러식)
+                          # 빈칸이면 역할이나 글자 표를 적었을 때 repeat, 아니면 once
+    "repeat_seconds": 0.15,   # repeat 일 때 같은 글자를 이 간격(초)마다 다시 보냄. 차는 약 0.3초 글자가 없으면 입력을 끈다(아두이노 세션 설계)
 }
+
+# 역할별 글자 표: 동작 상태 이름 → 글자. 11/19 총괄 제안을 sunbell 이 승인(대문자인지는 아두이노 세션과 확인할 것)
+ROLE_LETTERS = {
+    "P1": {"ARMS_UP": "W", "T_POSE": "S"},
+    "P2": {"LEFT_UP": "A", "RIGHT_UP": "D"},
+}
+ROLE_CHOICES = ["P1", "P2"]
+SEND_MODE_CHOICES = ["once", "repeat"]
 
 MODEL_CHOICES = ["lite", "full"]   # heavy 는 계획에서 뺐다(느리고, setup 이 받지 않음)
 
 BACKEND_CHOICES = ["auto", "dshow", "msmf", "avfoundation", "any"]
 
-SEND_ON_CHOICES = ["ARMS_UP", "LEFT_UP", "RIGHT_UP", "T_POSE", "LEAN_LEFT", "LEAN_RIGHT"]   # gestures/ 의 states. 새 동작을 쓰려면 여기에도 추가한다
+STATE_CHOICES = ["ARMS_UP", "LEFT_UP", "RIGHT_UP", "T_POSE", "LEAN_LEFT", "LEAN_RIGHT"]   # gestures/ 의 states. 새 동작을 쓰려면 여기에도 추가한다
+SEND_ON_CHOICES = STATE_CHOICES   # gestures/ 의 states. 새 동작을 쓰려면 여기에도 추가한다
 
 
 def auto_backends():
@@ -81,6 +97,22 @@ def parse_letter(text):
     raise argparse.ArgumentTypeError(f"글자는 F 처럼 하나만 적어 주세요: {text}")
 
 
+def parse_letters(text):
+    """동작별 글자 표. 예: ARMS_UP=W,T_POSE=S. 빈칸이면 빈 표."""
+    letters = {}
+    for item in text.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        state, _, letter = item.partition("=")
+        state = state.strip().upper()
+        if state not in STATE_CHOICES or len(letter) != 1 or not letter.isascii():
+            raise argparse.ArgumentTypeError(
+                f"ARMS_UP=W,T_POSE=S 처럼 적어 주세요(동작 {', '.join(STATE_CHOICES)} / 글자는 하나): {item}")
+        letters[state] = letter
+    return letters
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="몸 동작 인식 확인 프로그램")
     parser.add_argument("--camera", type=int, default=DEFAULTS["camera"], help="카메라 번호")
@@ -110,8 +142,18 @@ def parse_args(argv=None):
                        ("letter_quit", "프로그램을 끌 때")):
         parser.add_argument("--" + name.replace("_", "-"), type=parse_letter, default=DEFAULTS[name],
                             help=f"{text} 보낼 글자. 빈칸이면 보내지 않음")
+    parser.add_argument("--role", choices=ROLE_CHOICES, default=DEFAULTS["role"] or None,
+                        help="협동 레이싱 역할. P1 = 두 팔 W·T자 S / P2 = 왼팔 A·오른팔 D. 적으면 켜져 있는 동안 반복해서 보냄")
+    parser.add_argument("--letters", type=parse_letters, default=parse_letters(DEFAULTS["letters"]),
+                        help="동작별 글자를 직접 정함. 예: ARMS_UP=W,T_POSE=S (적으면 역할의 글자 표 대신 씀)")
+    parser.add_argument("--send-mode", choices=SEND_MODE_CHOICES, default=DEFAULTS["send_mode"] or None,
+                        help="once = 켜지는 순간 한 번 / repeat = 켜져 있는 동안 반복. 안 적으면 역할이나 글자 표가 있을 때 repeat")
+    parser.add_argument("--repeat-seconds", type=float, default=DEFAULTS["repeat_seconds"],
+                        help="repeat 일 때 같은 글자를 다시 보내는 간격(초)")
     parser.set_defaults(mirror=DEFAULTS["mirror"])
     args = parser.parse_args(argv)
+    if args.repeat_seconds <= 0:
+        parser.error("--repeat-seconds 는 0보다 커야 합니다")
     # 시도할 방식 목록. 직접 고르면 그 방식 하나만 쓴다
     args.backends = auto_backends() if args.backend == "auto" else [args.backend]
     return args
