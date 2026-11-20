@@ -338,7 +338,9 @@ def resolve_letters(args):
     멈춤 글자(11/20 sunbell 결정: 앞뒤용 X, 좌우용 Z): 방식이 repeat 이고 W A S D 를 쓰면, 안 적었을 때 축마다 멈춤 글자를 보낸다.
     --letter-off 를 적으면(빈칸 포함) 그 값 그대로 모든 동작에 쓰고 축마다 멈춤 글자는 쓰지 않는다.
 
-    끌 때 글자는 --letter-quit 를 적으면 그대로, 안 적으면 쓰는 축의 멈춤 글자(P1 은 X, P2 는 Z, 둘 다 쓰면 XZ),
+    끌 때 글자는 --letter-quit 를 적으면 그대로, 안 적으면 다음과 같다(11/20 sunbell: 둘 다 끌 때는 「X와 Z를 이어서」).
+    - 차와 연결된 노트북(--send-to 가 없음)은 W A S D 를 쓰면 앞뒤와 좌우를 모두 끄는 XZ. 이 노트북이 꺼지면 P2 의 글자도 더는 안 넘어가기 때문이다.
+    - P1 노트북으로 보내는 쪽(--send-to)은 자기 축의 멈춤 글자만(P2 는 Z). P1 의 앞뒤 입력은 안 끊는다.
     W A S D 가 아닌 역할은 X, 11/11 방식은 S. (새 약속에서 S 는 「뒤로」라서 끌 때 S 를 보내면 차가 뒤로 간다.)
     """
     if args.letters:
@@ -355,8 +357,10 @@ def resolve_letters(args):
         stops, off_letter = {}, args.letter_off
     if args.letter_quit is not None:
         quit_letter = args.letter_quit
+    elif axes and args.send_to:
+        quit_letter = "".join(sorted(set(axes.values())))    # 보내기만 하는 노트북: 자기 축만 끈다
     elif axes:
-        quit_letter = "".join(sorted(set(axes.values())))
+        quit_letter = "".join(sorted(set(AXIS_STOP.values())))    # 차와 연결된 노트북: 앞뒤와 좌우를 모두 끈다(XZ)
     else:
         quit_letter = "X" if name else "S"
     parts = [name, mode if name else "", "/".join(letters.values()) if name else ""]

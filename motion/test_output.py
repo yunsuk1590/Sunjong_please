@@ -510,14 +510,17 @@ class ConfigTest(Quiet):
             config.parse_args(["--letter-on", "FF"])
 
     def test_role_p1_and_p2_defaults(self):
-        """11/20: 멈춤 글자는 축마다 다르다. P1(W/S)은 X(앞뒤), P2(A/D)는 Z(좌우). 끌 때도 자기 축의 멈춤 글자."""
+        """11/20: 멈춤 글자는 축마다 다르다. P1(W/S)은 X(앞뒤), P2(A/D)는 Z(좌우). 끌 때는 차와 연결된 노트북이 XZ(둘 다), 보내기만 하는 노트북은 자기 축."""
         p1 = output.resolve_letters(config.parse_args(["--role", "P1"]))
         self.assertEqual(p1.letters, {"ARMS_UP": "W", "T_POSE": "S"})
-        self.assertEqual((p1.mode, p1.quit_letter, p1.shown), ("repeat", "X", "P1 repeat W/S stop X"))
+        self.assertEqual((p1.mode, p1.quit_letter, p1.shown), ("repeat", "XZ", "P1 repeat W/S stop X"))
         self.assertEqual(p1.stops, {"W": "X", "S": "X"})
         p2 = output.resolve_letters(config.parse_args(["--role", "P2"]))
         self.assertEqual(p2.letters, {"LEFT_UP": "A", "RIGHT_UP": "D"})
-        self.assertEqual((p2.mode, p2.quit_letter, p2.shown), ("repeat", "Z", "P2 repeat A/D stop Z"))
+        self.assertEqual((p2.mode, p2.quit_letter, p2.shown), ("repeat", "XZ", "P2 repeat A/D stop Z"))
+        # 보내기만 하는 노트북(--send-to)은 자기 축만 끈다. P1 의 앞뒤 입력을 끊지 않는다
+        sender = output.resolve_letters(config.parse_args(["--role", "P2", "--send-to", "172.20.17.8"]))
+        self.assertEqual(sender.quit_letter, "Z")
         self.assertEqual(p2.stops, {"A": "Z", "D": "Z"})
 
     def test_role_never_sends_s_when_quitting_unless_asked(self):
@@ -544,7 +547,7 @@ class ConfigTest(Quiet):
     def test_once_mode_has_no_axis_stops(self):
         plan = output.resolve_letters(config.parse_args(["--role", "P1", "--send-mode", "once"]))
         self.assertEqual(plan.stops, {})
-        self.assertEqual(plan.quit_letter, "X")      # 끌 때는 여전히 자기 축을 끈다
+        self.assertEqual(plan.quit_letter, "XZ")     # 끌 때는 여전히 차와 연결된 노트북이 둘 다 끈다
 
     def test_stop_repeats_option(self):
         self.assertEqual(config.parse_args([]).stop_repeats, 3)
@@ -559,7 +562,7 @@ class ConfigTest(Quiet):
         self.assertEqual(custom.mode, "repeat")
         self.assertEqual(custom.stops, {})            # 소문자는 축 표(W A S D)에 없어서 멈춤 글자가 없다
         table_only = output.resolve_letters(config.parse_args(["--letters", "LEFT_UP=A"]))
-        self.assertEqual((table_only.mode, table_only.quit_letter), ("repeat", "Z"))
+        self.assertEqual((table_only.mode, table_only.quit_letter), ("repeat", "XZ"))
 
     def test_bad_letters_and_interval_are_refused(self):
         for bad in (["--letters", "ARMS_UP=WW"], ["--letters", "JUMP=W"], ["--letters", "ARMS_UP"],
@@ -570,7 +573,7 @@ class ConfigTest(Quiet):
     def test_make_output_uses_the_role(self):
         out = output.make_output(config.parse_args(["--role", "P1"]))
         self.assertEqual(out.trigger.repeat_seconds, 0.15)
-        self.assertEqual(out.quit_letter, "X")
+        self.assertEqual(out.quit_letter, "XZ")
         self.assertEqual(out.trigger.stops, {"W": "X", "S": "X"})
         self.assertEqual(out.trigger.stop_repeats, 3)
         out.update({"ARMS": "ARMS_UP"}, 1.0)
