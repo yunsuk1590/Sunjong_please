@@ -7,6 +7,7 @@ motion 폴더에서 실행한다.
 와이파이를 사이에 둔 실제 시험은 자동으로 할 수 없다. net_check.py 의 설명대로 두 노트북에서 직접 한다.
 """
 
+import _thread
 import socket
 import threading
 import unittest
@@ -101,6 +102,23 @@ class SendAndListen(unittest.TestCase):
         self.assertEqual(s.count, 5)
         self.assertEqual(s.over_limit, 1)
         self.assertAlmostEqual(s.max_gap, 0.5)
+
+    def test_ctrl_c_still_leaves_the_results(self):
+        """11/20: Ctrl+C 로 끌 때 오류가 나고 받은 결과가 안 나온 문제. 끄는 때가 언제든 결과가 남아야 한다."""
+        for delay in (0.10, 0.17, 0.23, 0.31, 0.37):
+            listener = net_check.make_listener(0, "127.0.0.1")
+            sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                sender.sendto(b"A", ("127.0.0.1", listener.getsockname()[1]))
+                timer = threading.Timer(delay, _thread.interrupt_main)    # Ctrl+C 를 누른 것과 같다
+                timer.start()
+                stats, ignored = net_check.listen_until_interrupt(listener, log=quiet)
+                timer.join()
+                self.assertEqual(stats["127.0.0.1"].count, 1, delay)
+                self.assertEqual(ignored, 0)
+            finally:
+                sender.close()
+                listener.close()
 
     def test_local_addresses_has_no_loopback(self):
         self.assertTrue(all(not a.startswith("127.") for a in net_check.local_addresses()))

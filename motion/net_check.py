@@ -86,35 +86,53 @@ class SourceStats:
         return self.total_gap / (self.count - 1) if self.count > 1 else 0.0
 
 
-def listen_loop(sock, stop, log=print, now=time.monotonic):
-    """받아서 답하는 쪽. stop 이 켜지면 끝나고 ({주소: SourceStats}, 버린 개수)를 돌려준다."""
+class ListenResult:
+    """받는 쪽의 기록. 반복문 밖에 두어서, Ctrl+C 로 반복문이 중간에 끊겨도 지금까지의 결과가 남는다."""
+
+    def __init__(self):
+        self.stats = {}      # {보낸 주소: SourceStats}
+        self.ignored = 0     # W A S D X 가 아니거나 한 글자가 아니어서 버린 것
+
+
+def listen_loop(sock, stop, log=print, now=time.monotonic, result=None):
+    """받아서 답하는 쪽. stop 이 켜지면 끝나고 ({주소: SourceStats}, 버린 개수)를 돌려준다.
+
+    Ctrl+C(KeyboardInterrupt)는 여기서 잡지 않는다. 파이썬 3.11 윈도우에서 반복문 안의 continue 줄에서 빠져나가
+    안쪽 try 가 못 잡는 경우가 있었다(11/20 시험). 부르는 쪽이 잡고, 기록은 result 로 남긴다(listen_until_interrupt).
+    """
+    result = result if result is not None else ListenResult()
     sock.settimeout(0.2)
-    stats = {}
-    ignored = 0
+    while not stop.is_set():
+        try:
+            data, address = sock.recvfrom(64)
+        except socket.timeout:
+            continue
+        except ConnectionResetError:    # 윈도우에서 상대가 사라졌을 때 가끔 나온다. 무시한다
+            continue
+        except OSError:
+            break
+        letter = data.decode("ascii", "ignore")
+        if len(letter) != 1 or letter not in ALLOWED:
+            result.ignored += 1
+            continue
+        source = result.stats.setdefault(address[0], SourceStats())
+        if source.add(letter, now()):
+            log(f"[받음] {address[0]} → {letter}")
+        try:
+            sock.sendto(data, address)    # 받았다는 답. 보낸 글자를 그대로 돌려준다
+        except OSError:
+            pass
+    return result.stats, result.ignored
+
+
+def listen_until_interrupt(sock, log=print):
+    """Ctrl+C 로 끌 때까지 받는다. 끄면 지금까지 받은 ({주소: SourceStats}, 버린 개수)를 돌려준다."""
+    result = ListenResult()
     try:
-        while not stop.is_set():
-            try:
-                data, address = sock.recvfrom(64)
-            except socket.timeout:
-                continue
-            except ConnectionResetError:    # 윈도우에서 상대가 사라졌을 때 가끔 나온다. 무시한다
-                continue
-            except OSError:
-                break
-            letter = data.decode("ascii", "ignore")
-            if len(letter) != 1 or letter not in ALLOWED:
-                ignored += 1
-                continue
-            source = stats.setdefault(address[0], SourceStats())
-            if source.add(letter, now()):
-                log(f"[받음] {address[0]} → {letter}")
-            try:
-                sock.sendto(data, address)    # 받았다는 답. 보낸 글자를 그대로 돌려준다
-            except OSError:
-                pass
-    except KeyboardInterrupt:    # Ctrl+C 로 끄면 지금까지 받은 결과를 보여 준다
+        listen_loop(sock, threading.Event(), log=log, result=result)
+    except KeyboardInterrupt:
         pass
-    return stats, ignored
+    return result.stats, result.ignored
 
 
 def print_listen_summary(stats, ignored, log=print):
@@ -221,7 +239,7 @@ def main(argv=None):
         if addresses:
             print("[이 노트북의 주소] " + ", ".join(addresses) + "   ← 와이파이에 연결된 주소를 P2 에서 씁니다.")
         print("처음 켤 때 윈도우가 네트워크 접근을 물으면 「허용」을 누르세요. 끌 때는 Ctrl+C 입니다.")
-        stats, ignored = listen_loop(sock, threading.Event())
+        stats, ignored = listen_until_interrupt(sock)
         sock.close()
         print_listen_summary(stats, ignored)
         return 0
