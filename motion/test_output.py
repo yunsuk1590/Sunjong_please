@@ -59,7 +59,7 @@ class WhenToSend(unittest.TestCase):
         s = Stream()
         s.run(1.0, arms_up=True)
         for _ in range(10):
-            s.run(0.1, arms_up=False)    # 꺼짐 대기 0.35초보다 짧게 튐
+            s.run(0.1, arms_up=False)    # 꺼짐 대기 0.2초보다 짧게 튐
             s.run(0.5, arms_up=True)
         self.assertEqual(s.letters, ["F"])
 
@@ -132,18 +132,18 @@ class Controller(unittest.TestCase):
     def test_nothing_is_sent_after_the_arms_come_down(self):
         s = Stream(letters=self.P1, repeat=0.15)
         s.run(1.0, arms_up=True)
-        s.run(0.6)                          # 꺼짐 대기 0.35초가 지나면 보내지 않는다
+        s.run(0.6)                          # 꺼짐 대기 0.2초가 지나면 보내지 않는다
         count = len(s.letters)
         s.run(2.0)
         self.assertEqual(len(s.letters), count)
 
     def test_stop_lag_is_the_off_wait_only(self):
-        """팔을 내린 뒤 마지막 글자가 나가는 시간은 꺼짐 대기(0.35초) 안이다. 차는 그 뒤 약 0.3초 더 간다."""
+        """팔을 내린 뒤 마지막 글자가 나가는 시간은 꺼짐 대기(0.2초) 안이다. 차는 그 뒤 약 0.3초 더 간다."""
         s = Stream(letters=self.P1, repeat=0.15)
         s.run(1.0, arms_up=True)
         released_at = s.now
         s.run(1.0)
-        self.assertLessEqual(s.times[-1] - released_at, 0.35 + STEP)
+        self.assertLessEqual(s.times[-1] - released_at, 0.2 + STEP)
 
     def test_switching_gesture_sends_the_new_letter_at_once(self):
         s = Stream(letters=self.P1, repeat=0.15)
@@ -188,13 +188,13 @@ class Controller(unittest.TestCase):
         self.assertEqual(s.letters[-3:], ["Z", "Z", "Z"])
 
     def test_stop_letter_goes_out_in_about_the_off_wait_after_release(self):
-        """팔을 내린 뒤 첫 멈춤 글자가 나가기까지는 꺼짐 대기 시간(기본 0.35초)이다."""
+        """팔을 내린 뒤 첫 멈춤 글자가 나가기까지는 꺼짐 대기 시간(기본 0.2초)이다."""
         s = Stream(letters=self.P1, repeat=0.15, stops=self.STOPS, stop_repeats=1)
         s.run(1.0, arms_up=True)
         released_at = s.now
         s.run(1.0)
         first_stop = next(t for t, letter in zip(s.times, s.letters) if letter == "X")
-        self.assertLessEqual(first_stop - released_at, 0.35 + 2 * STEP)
+        self.assertLessEqual(first_stop - released_at, 0.2 + 2 * STEP)
 
     def test_raising_the_same_axis_again_cancels_the_pending_stop_letters(self):
         """멈춤 글자를 연달아 보내는 사이에 같은 축을 다시 켜면, 남은 멈춤 글자가 새 입력을 멈추지 않는다."""
