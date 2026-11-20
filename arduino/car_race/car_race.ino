@@ -26,7 +26,14 @@ const char LETTER_STOP     = 'X';  // 【임시】 멈춤 글자. 예전의 S=�
 // ===== 바꿀 수 있는 값 (모두 【임시】, 바닥 시험으로 정함) =====
 const unsigned long INPUT_TIMEOUT_MS = 300;  // 글자가 이 시간 안에 다시 안 오면 그 입력을 끔
 const uint8_t DRIVE_SPEED       = 255;       // 앞/뒤로만 갈 때 (2026-11-11 sunbell 결정: AA 건전지에서 200은 출발 못 함)
-const uint8_t CURVE_INNER_SPEED = 150;       // 휘며 갈 때 안쪽 바퀴 속도 (바깥쪽 바퀴는 DRIVE_SPEED). 2026-11-19 시험: 120 은 너무 좁게, 190 은 거의 직진이라 그 사이로
+// 휘며 갈 때(W+A, W+D)의 모양: 바깥 바퀴와 안쪽 바퀴 속도의 짝 여섯 가지. 시험 중에는 글자 1~6 으로 바꿔 볼 수 있습니다(차를 다시 안 올려도 됨).
+// 안쪽이 바깥보다 많이 느릴수록 좁게 돕니다. 짝 번호는 1부터 셉니다.
+//  1: 바깥 255 / 안쪽 190 (넓게, 2026-11-19 시험: 거의 직진)    2: 255 / 150 (지금 값, 시험 중)
+//  3: 255 / 110   4: 255 / 70   5: 200 / 95 (바깥도 약하게)   6: 255 / 0 (안쪽 바퀴를 놓음, 가장 좁게)
+const uint8_t CURVE_COUNT = 6;
+const uint8_t CURVE_OUTER[CURVE_COUNT] = {255, 255, 255, 255, 200, 255};
+const uint8_t CURVE_INNER[CURVE_COUNT] = {190, 150, 110,  70,  95,   0};
+const uint8_t CURVE_DEFAULT = 2;             // 켜졌을 때 쓰는 짝 번호(1~6). 이 값만 바꿔서 올리면 기본값이 바뀝니다
 const uint8_t SPIN_SPEED        = 190;       // 제자리 돌기 속도. 255 로 0.8초 누르면 약 270도 돌아 너무 빨랐음(2026-11-19 시험)
 const uint8_t RIGHT_SCALE_PERCENT = 94;      // 오른쪽 바퀴 값에 곱하는 비율(%). 직진이 살짝 왼쪽으로 휘어서 오른쪽을 약하게(2026-11-19 시험). 100 = 보정 없음
 const uint8_t KICK_SPEED        = 255;       // 멈춘 데서 출발하는 순간만 세게 밀 때의 속도
@@ -59,6 +66,7 @@ AF_DCMotor rightWheel(4);  // 오른쪽 바퀴 = 쉴드 M4
 SoftwareSerial bluetooth(BT_RX_PIN, BT_TX_PIN);
 
 // ===== 지금 상태 =====
+uint8_t curveIndex = CURVE_DEFAULT - 1;   // 지금 쓰는 커브 짝 (0부터 셈)
 int8_t driveDir = 0;               // 앞뒤 입력: +1 앞, -1 뒤, 0 없음
 int8_t turnDir  = 0;               // 좌우 입력: -1 왼, +1 오른, 0 없음
 unsigned long driveAt = 0;         // 앞뒤 글자를 마지막으로 받은 때(millis)
@@ -115,6 +123,13 @@ void handleLetter(int letter, const __FlashStringHelper *source) {
       Serial.print('['); Serial.print(source); Serial.println(F("] X : 모두 멈춤"));
       break;
     default:
+      if (letter >= '1' && letter < '1' + CURVE_COUNT) {   // 시험용: 커브 모양 바꾸기
+        curveIndex = letter - '1';
+        Serial.print('['); Serial.print(source); Serial.print(F("] 커브 ")); Serial.print((char)letter);
+        Serial.print(F(": 바깥 ")); Serial.print(CURVE_OUTER[curveIndex]);
+        Serial.print(F(" / 안쪽 ")); Serial.println(CURVE_INNER[curveIndex]);
+        break;
+      }
       Serial.print('['); Serial.print(source); Serial.print(F("] ")); Serial.print((char)letter);
       Serial.println(F(" : 모르는 글자 -> 무시"));
       break;
@@ -168,8 +183,8 @@ void applyWheels() {
   if (drive != 0 && turn == 0) {                     // 곧게 앞/뒤
     left = right = drive * DRIVE_SPEED;
   } else if (drive != 0) {                           // 휘며 앞/뒤: 가려는 쪽 안쪽 바퀴를 느리게
-    int outer = drive * DRIVE_SPEED;
-    int inner = drive * CURVE_INNER_SPEED;
+    int outer = drive * CURVE_OUTER[curveIndex];
+    int inner = drive * CURVE_INNER[curveIndex];
     if (turn < 0) { left = inner; right = outer; } else { left = outer; right = inner; }
   } else if (turn != 0) {                            // 제자리 돌기
     if (turn < 0) { left = -SPIN_SPEED; right = SPIN_SPEED; } else { left = SPIN_SPEED; right = -SPIN_SPEED; }
