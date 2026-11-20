@@ -2,7 +2,8 @@
 // 협동 레이싱용 차 코드: 컨트롤러처럼 W/A/S/D 로 조종합니다 (sunbell/arduino 브랜치)
 //
 // 글자 약속 (2026-11-19 sunbell 결정: 화이트보드의 W/S = 앞/뒤, A/D = 왼/오)
-//   W 앞으로, S 뒤로, A 왼쪽, D 오른쪽, X 모두 멈춤(제안, 아직 정하지 않음)
+//   W 앞으로, S 뒤로, A 왼쪽, D 오른쪽, X 앞뒤 입력만 끔, Z 좌우 입력만 끔 (2026-11-20 sunbell 결정)
+//   노트북 2대로 나눠 몰 때 한 사람이 멈춰도 다른 사람의 입력은 끊기지 않게 하려고 나눴습니다. 둘 다 끄려면 X 와 Z 를 이어서 보냅니다.
 // 노트북이 동작이 켜져 있는 동안 글자를 0.1~0.2초마다 계속 보내고, 차는 글자가 INPUT_TIMEOUT_MS 안에
 // 안 오면 그 입력을 끕니다. 그래서 연결이 끊겨도 차가 스스로 멈춥니다.
 // 앞뒤(W/S)와 좌우(A/D)를 따로 기억해서 합칩니다: W+A = 왼쪽으로 휘며 앞으로, A만 = 제자리 돌기.
@@ -20,7 +21,8 @@ const char LETTER_FORWARD  = 'W';
 const char LETTER_BACKWARD = 'S';
 const char LETTER_LEFT     = 'A';
 const char LETTER_RIGHT    = 'D';
-const char LETTER_STOP     = 'X';  // 【임시】 멈춤 글자. 예전의 S=멈춤과 뜻이 달라진 것에 주의
+const char LETTER_STOP_DRIVE = 'X';  // 앞뒤 입력만 끔 (2026-11-20 sunbell 결정). 예전 코드의 S=멈춤과 뜻이 다름에 주의
+const char LETTER_STOP_TURN  = 'Z';  // 좌우 입력만 끔 (2026-11-20 sunbell 결정)
 // 그 밖의 글자, 줄바꿈(\r, \n)은 무시합니다.
 
 // ===== 바꿀 수 있는 값 (모두 【임시】, 바닥 시험으로 정함) =====
@@ -86,7 +88,7 @@ void setup() {
   digitalWrite(TRIG_PIN, LOW);
   pinMode(ECHO_PIN, INPUT);
   releaseWheels();
-  Serial.println(F("car_race 시작: 멈춤 상태. W 앞, S 뒤, A 왼, D 오른, X 멈춤"));
+  Serial.println(F("car_race 시작: 멈춤 상태. W 앞, S 뒤, A 왼, D 오른, X 앞뒤 끔, Z 좌우 끔"));
 }
 
 void loop() {
@@ -117,10 +119,13 @@ void handleLetter(int letter, const __FlashStringHelper *source) {
     case LETTER_BACKWARD: driveDir = -1; driveAt = now; break;
     case LETTER_LEFT:     turnDir = -1;  turnAt = now;  break;
     case LETTER_RIGHT:    turnDir = +1;  turnAt = now;  break;
-    case LETTER_STOP:
+    case LETTER_STOP_DRIVE:
       driveDir = 0;
+      Serial.print('['); Serial.print(source); Serial.println(F("] X : 앞뒤 끔"));
+      break;
+    case LETTER_STOP_TURN:
       turnDir = 0;
-      Serial.print('['); Serial.print(source); Serial.println(F("] X : 모두 멈춤"));
+      Serial.print('['); Serial.print(source); Serial.println(F("] Z : 좌우 끔"));
       break;
     default:
       if (letter >= '1' && letter < '1' + CURVE_COUNT) {   // 시험용: 커브 모양 바꾸기
