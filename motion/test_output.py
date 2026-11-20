@@ -26,9 +26,9 @@ STEP = 1 / 30   # 카메라 사진 한 장 간격(초)
 class Stream:
     """실제 떨림 방지를 거쳐 글자를 고르는 흐름. 시간은 가짜로 흐른다."""
 
-    def __init__(self, off_letter="", letters=None, repeat=0.0):
+    def __init__(self, off_letter="", letters=None, repeat=0.0, stops=None, stop_repeats=1):
         self.stabilizer = make_stabilizer(config.parse_args([]))
-        self.trigger = output.LetterTrigger(letters or {"ARMS_UP": "F"}, off_letter, repeat)
+        self.trigger = output.LetterTrigger(letters or {"ARMS_UP": "F"}, off_letter, repeat, stops, stop_repeats)
         self.now = 0.0
         self.letters = []
         self.times = []    # 글자가 고른 시각
@@ -42,8 +42,7 @@ class Stream:
                 "LEAN": SimpleNamespace(state=lean),
             }
             stable = self.stabilizer.update(raw, person, self.now)
-            letter = self.trigger.update(stable, self.now)
-            if letter:
+            for letter in self.trigger.update(stable, self.now):    # 한꺼번에 여러 글자가 나올 수 있다
                 self.letters.append(letter)
                 self.times.append(self.now)
             self.now += STEP
@@ -162,6 +161,72 @@ class Controller(unittest.TestCase):
         self.assertEqual(s.letters[0], "A")
         self.assertEqual(s.letters[-1], "D")
         self.assertEqual(set(s.letters), {"A", "D"})
+
+    STOPS = {"W": "X", "S": "X", "A": "Z", "D": "Z"}
+
+    def test_stop_letter_is_sent_when_the_arms_come_down(self):
+        """11/20: 팔을 내리면 그 축의 멈춤 글자를 보낸다. P1 은 X(앞뒤), P2 는 Z(좌우)."""
+        p1 = Stream(letters=self.P1, repeat=0.15, stops=self.STOPS)
+        p1.run(1.0, arms_up=True)
+        p1.run(1.0)
+        self.assertEqual(p1.letters[-1], "X")
+        self.assertNotIn("Z", p1.letters)
+        p2 = Stream(letters=self.P2, repeat=0.15, stops=self.STOPS)
+        p2.run(1.0, state="LEFT_UP")
+        p2.run(1.0)
+        self.assertEqual(p2.letters[-1], "Z")
+        self.assertNotIn("X", p2.letters)
+
+    def test_the_stop_letter_is_repeated_so_one_lost_letter_still_stops_the_car(self):
+        s = Stream(letters=self.P2, repeat=0.15, stops=self.STOPS, stop_repeats=3)
+        s.run(1.0, state="LEFT_UP")
+        s.run(2.0)
+        stops = [t for t, letter in zip(s.times, s.letters) if letter == "Z"]
+        self.assertEqual(len(stops), 3)                       # 처음은 바로, 나머지 둘은 0.15초 간격
+        self.assertAlmostEqual(stops[1] - stops[0], 0.15, delta=0.04)
+        self.assertAlmostEqual(stops[2] - stops[1], 0.15, delta=0.04)
+        self.assertEqual(s.letters[-3:], ["Z", "Z", "Z"])
+
+    def test_stop_letter_goes_out_in_about_the_off_wait_after_release(self):
+        """팔을 내린 뒤 첫 멈춤 글자가 나가기까지는 꺼짐 대기 시간(기본 0.35초)이다."""
+        s = Stream(letters=self.P1, repeat=0.15, stops=self.STOPS, stop_repeats=1)
+        s.run(1.0, arms_up=True)
+        released_at = s.now
+        s.run(1.0)
+        first_stop = next(t for t, letter in zip(s.times, s.letters) if letter == "X")
+        self.assertLessEqual(first_stop - released_at, 0.35 + 2 * STEP)
+
+    def test_raising_the_same_axis_again_cancels_the_pending_stop_letters(self):
+        """멈춤 글자를 연달아 보내는 사이에 같은 축을 다시 켜면, 남은 멈춤 글자가 새 입력을 멈추지 않는다."""
+        trigger = output.LetterTrigger(self.P2, "", 0.15, self.STOPS, 3)
+        left = {"ARMS": "LEFT_UP"}
+        none = {"ARMS": None}
+        sent = [trigger.update(left, 0.0), trigger.update(none, 0.10)]     # 멈춤 글자 첫 번째
+        sent.append(trigger.update(left, 0.15))                            # 다시 켬 → 남은 멈춤 글자는 취소
+        sent.append(trigger.update(left, 0.40))                            # 원래 두 번째·세 번째 시각(0.25, 0.40) 이후
+        self.assertEqual(sent[0], "A")
+        self.assertEqual(sent[1], "Z")
+        self.assertEqual(sent[2], "A")
+        self.assertNotIn("Z", sent[3])
+
+    def test_switching_within_one_axis_sends_no_stop_letter(self):
+        s = Stream(letters=self.P1, repeat=0.15, stops=self.STOPS)
+        s.run(1.0, arms_up=True)
+        s.run(1.0, state="T_POSE")                            # W 에서 S 로 바로 바꿈
+        self.assertNotIn("X", s.letters[:-1])
+        self.assertEqual(s.letters[0], "W")
+
+    def test_switching_to_the_other_axis_stops_the_old_axis_and_starts_the_new_one(self):
+        both = {**self.P1, **self.P2}
+        trigger = output.LetterTrigger(both, "", 0.15, self.STOPS, 1)
+        self.assertEqual(trigger.update({"ARMS": "ARMS_UP"}, 0.0), "W")
+        self.assertEqual(trigger.update({"ARMS": "LEFT_UP"}, 0.05), "XA")    # 앞뒤를 끄고 좌우를 켬
+
+    def test_legacy_off_letter_still_works_without_stops(self):
+        s = Stream(off_letter="S", letters={"ARMS_UP": "F"}, repeat=0.0)
+        s.run(1.0, arms_up=True)
+        s.run(1.0)
+        self.assertEqual(s.letters, ["F", "S"])
 
     def test_one_laptop_can_send_all_four_letters_one_at_a_time(self):
         """노트북 1대로 시험할 때: --letters 로 네 동작을 모두 켠다. 동작은 한 번에 하나만 켜진다."""
@@ -432,38 +497,69 @@ class ConfigTest(Quiet):
         args = config.parse_args([])
         self.assertEqual(
             (args.port, args.baud, args.send_on, args.letter_on, args.letter_off),
-            ("", 9600, "ARMS_UP", "F", ""),
+            ("", 9600, "ARMS_UP", "F", None),
         )
-        # 11/11 방식: 켜지는 순간 한 번, 끌 때 S
-        self.assertEqual(output.resolve_letters(args), ({"ARMS_UP": "F"}, "once", "S", ""))
+        # 11/11 방식: 켜지는 순간 한 번, 끌 때 S, 멈춤 글자 없음
+        plan = output.resolve_letters(args)
+        self.assertEqual((plan.letters, plan.mode, plan.quit_letter, plan.shown), ({"ARMS_UP": "F"}, "once", "S", ""))
+        self.assertEqual((plan.off_letter, plan.stops), ("", {}))
+        self.assertIsNone(args.letter_off)
 
     def test_letter_must_be_one_character(self):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             config.parse_args(["--letter-on", "FF"])
 
     def test_role_p1_and_p2_defaults(self):
+        """11/20: 멈춤 글자는 축마다 다르다. P1(W/S)은 X(앞뒤), P2(A/D)는 Z(좌우). 끌 때도 자기 축의 멈춤 글자."""
         p1 = output.resolve_letters(config.parse_args(["--role", "P1"]))
-        self.assertEqual(p1, ({"ARMS_UP": "W", "T_POSE": "S"}, "repeat", "X", "P1 repeat W/S"))
+        self.assertEqual(p1.letters, {"ARMS_UP": "W", "T_POSE": "S"})
+        self.assertEqual((p1.mode, p1.quit_letter, p1.shown), ("repeat", "X", "P1 repeat W/S stop X"))
+        self.assertEqual(p1.stops, {"W": "X", "S": "X"})
         p2 = output.resolve_letters(config.parse_args(["--role", "P2"]))
-        self.assertEqual(p2, ({"LEFT_UP": "A", "RIGHT_UP": "D"}, "repeat", "X", "P2 repeat A/D"))
+        self.assertEqual(p2.letters, {"LEFT_UP": "A", "RIGHT_UP": "D"})
+        self.assertEqual((p2.mode, p2.quit_letter, p2.shown), ("repeat", "Z", "P2 repeat A/D stop Z"))
+        self.assertEqual(p2.stops, {"A": "Z", "D": "Z"})
 
     def test_role_never_sends_s_when_quitting_unless_asked(self):
-        """새 약속에서 S 는 「뒤로」다. 끌 때 S 가 나가면 차가 뒤로 가므로 역할을 고르면 X 를 쓴다."""
+        """새 약속에서 S 는 「뒤로」다. 끌 때 S 가 나가면 차가 뒤로 가므로 역할을 고르면 멈춤 글자를 쓴다."""
         for role in ("P1", "P2"):
-            self.assertNotEqual(output.resolve_letters(config.parse_args(["--role", role]))[2], "S")
+            self.assertNotEqual(output.resolve_letters(config.parse_args(["--role", role])).quit_letter, "S")
         asked = output.resolve_letters(config.parse_args(["--role", "P1", "--letter-quit", "S"]))
-        self.assertEqual(asked[2], "S")
+        self.assertEqual(asked.quit_letter, "S")
         none = output.resolve_letters(config.parse_args(["--role", "P1", "--letter-quit", ""]))
-        self.assertEqual(none[2], "")
+        self.assertEqual(none.quit_letter, "")
+
+    def test_one_laptop_with_all_four_letters_stops_both_axes_when_quitting(self):
+        plan = output.resolve_letters(config.parse_args(["--letters", "ARMS_UP=W,T_POSE=S,LEFT_UP=A,RIGHT_UP=D"]))
+        self.assertEqual(plan.quit_letter, "XZ")
+        self.assertEqual(plan.stops, {"W": "X", "S": "X", "A": "Z", "D": "Z"})
+
+    def test_letter_off_option_overrides_the_axis_stops(self):
+        """--letter-off 를 적으면(빈칸 포함) 그 값 그대로 쓰고 축마다 멈춤 글자는 쓰지 않는다."""
+        one = output.resolve_letters(config.parse_args(["--role", "P1", "--letter-off", "Q"]))
+        self.assertEqual((one.off_letter, one.stops), ("Q", {}))
+        nothing = output.resolve_letters(config.parse_args(["--role", "P1", "--letter-off", ""]))
+        self.assertEqual((nothing.off_letter, nothing.stops), ("", {}))
+
+    def test_once_mode_has_no_axis_stops(self):
+        plan = output.resolve_letters(config.parse_args(["--role", "P1", "--send-mode", "once"]))
+        self.assertEqual(plan.stops, {})
+        self.assertEqual(plan.quit_letter, "X")      # 끌 때는 여전히 자기 축을 끈다
+
+    def test_stop_repeats_option(self):
+        self.assertEqual(config.parse_args([]).stop_repeats, 3)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            config.parse_args(["--stop-repeats", "0"])
 
     def test_send_mode_and_letters_options(self):
         once = output.resolve_letters(config.parse_args(["--role", "P2", "--send-mode", "once"]))
-        self.assertEqual(once[1], "once")
+        self.assertEqual(once.mode, "once")
         custom = output.resolve_letters(config.parse_args(["--role", "P1", "--letters", "ARMS_UP=w, t_pose=s"]))
-        self.assertEqual(custom[0], {"ARMS_UP": "w", "T_POSE": "s"})
-        self.assertEqual(custom[1], "repeat")
+        self.assertEqual(custom.letters, {"ARMS_UP": "w", "T_POSE": "s"})
+        self.assertEqual(custom.mode, "repeat")
+        self.assertEqual(custom.stops, {})            # 소문자는 축 표(W A S D)에 없어서 멈춤 글자가 없다
         table_only = output.resolve_letters(config.parse_args(["--letters", "LEFT_UP=A"]))
-        self.assertEqual((table_only[1], table_only[2]), ("repeat", "X"))
+        self.assertEqual((table_only.mode, table_only.quit_letter), ("repeat", "Z"))
 
     def test_bad_letters_and_interval_are_refused(self):
         for bad in (["--letters", "ARMS_UP=WW"], ["--letters", "JUMP=W"], ["--letters", "ARMS_UP"],
@@ -475,8 +571,10 @@ class ConfigTest(Quiet):
         out = output.make_output(config.parse_args(["--role", "P1"]))
         self.assertEqual(out.trigger.repeat_seconds, 0.15)
         self.assertEqual(out.quit_letter, "X")
+        self.assertEqual(out.trigger.stops, {"W": "X", "S": "X"})
+        self.assertEqual(out.trigger.stop_repeats, 3)
         out.update({"ARMS": "ARMS_UP"}, 1.0)
-        self.assertIn("[P1 repeat W/S]", out.status_text(1.2))
+        self.assertIn("[P1 repeat W/S stop X]", out.status_text(1.2))
         self.assertIn("last W", out.status_text(1.2))
 
 

@@ -27,7 +27,7 @@ import time
 from collections import deque
 
 DEFAULT_PORT = 5005
-ALLOWED = "WASDX"          # 협동 레이싱에서 쓰는 글자. 이 밖의 것은 버린다
+ALLOWED = "WASDXZ"         # 협동 레이싱에서 쓰는 글자(X = 앞뒤만 끔, Z = 좌우만 끔). 이 밖의 것은 버린다
 DEFAULT_INTERVAL = 0.15    # 글자를 보내는 간격(초). 프로그램의 --repeat-seconds 기본값과 같다
 GAP_LIMIT = 0.3            # 차가 글자를 이보다 오래 못 받으면 그 입력을 끈다
 PRINT_GAP = 0.5            # 같은 글자를 이보다 오래 쉬었다 받으면 새로 누른 것으로 보고 한 줄 찍는다

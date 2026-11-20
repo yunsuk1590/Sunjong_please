@@ -3,7 +3,8 @@
 흐름: 떨림 방지를 거친 결과(STABLE) → 동작에 맞는 글자를 고름 → 글자 하나를 COM 포트로 보냄
 - once(11/11 방식, 리듬게임용): 동작이 켜지는 순간 한 번만 보낸다.
 - repeat(컨트롤러식, 협동 레이싱): 동작이 켜져 있는 동안 같은 글자를 짧은 간격마다 다시 보낸다.
-  차는 약 0.3초 글자가 없으면 그 입력을 끄므로, 팔을 내리면 보내지 않는 것만으로 차가 선다.
+  팔을 내리면 그 축의 멈춤 글자(앞뒤 X, 좌우 Z)를 연달아 보내서 차가 바로 서게 한다(11/20 sunbell 결정).
+  멈춤 글자를 잃어도 차는 약 0.3초 글자가 없으면 그 입력을 스스로 끈다.
 
 - 포트를 적지 않으면(--port 없음) 아무 데도 보내지 않고 화면과 터미널에만 표시한다(가짜 보내기).
 - 블루투스 포트는 여는 데 몇 초 걸릴 수 있어서, 따로 도는 작업 줄에서 열고 보낸다. 그래서 화면이 멈추지 않는다.
@@ -15,9 +16,10 @@
 
 import threading
 import time
+from collections import namedtuple
 from importlib.util import find_spec
 
-from config import ROLE_LETTERS
+from config import AXIS_STOP, ROLE_LETTERS
 from netlink import PrintGate, UdpLink, UdpListener, parse_address   # PrintGate 는 netlink 에 있다(순환 import 를 피하려고)
 
 RETRY_SECONDS = 3.0    # 포트가 안 열리거나 끊기면 이만큼 기다렸다가 다시 연다
@@ -35,31 +37,60 @@ class LetterTrigger:
     - repeat_seconds 가 0보다 크면(컨트롤러식, 11/19) 동작이 켜져 있는 동안 그 간격마다 같은 글자를 다시 고른다.
       0이면 켜지는 순간 한 번만 고른다(11/11 방식, 리듬게임용으로 남겨 둠).
 
+    stops 를 주면(11/20 sunbell 결정) off_letter 대신 축마다 멈춤 글자를 쓴다.
+    stops: {글자: 멈춤 글자}. 예) {"W": "X", "S": "X", "A": "Z", "D": "Z"} (X = 앞뒤만 끔, Z = 좌우만 끔)
+    - 그 축의 동작이 꺼지는 순간 멈춤 글자를 고른다. 같은 축 안에서 바로 바뀌면(W 에서 S) 멈춤 글자를 보내지 않는다.
+    - 다른 축으로 바로 바뀌면(W 에서 A) 앞 축의 멈춤 글자(X)와 새 글자(A)를 함께 고른다.
+    - 멈춤 글자는 stop_repeats 번 연달아 보낸다(처음은 바로, 나머지는 repeat_seconds 간격). 글자 하나를 잃어도 서게 하려는 것이다.
+      그 사이에 같은 축이 다시 켜지면 남은 멈춤 글자는 보내지 않는다(새로 켠 입력을 멈추지 않게).
+
+    update() 는 지금 보낼 글자들을 **문자열**로 돌려준다(없으면 빈칸, 두 글자 이상일 수 있다).
+
     떨림 방지가 상태를 끄면 다음에 켜질 때 다시 글자를 고른다. 그래서 아래 두 경우에도 글자가 나간다.
     - 프로그램을 켤 때 이미 팔을 들고 있었던 경우
     - 팔을 든 채로 사람을 lost 초(0.5초)보다 오래 놓쳤다가 다시 잡은 경우
     """
 
-    def __init__(self, letters, off_letter="", repeat_seconds=0.0):
+    def __init__(self, letters, off_letter="", repeat_seconds=0.0, stops=None, stop_repeats=1):
         self.letters = dict(letters)
         self.off_letter = off_letter
         self.repeat_seconds = repeat_seconds
+        self.stops = dict(stops or {})
+        self.stop_repeats = max(1, stop_repeats)
         self.current = ""          # 지금 켜져 있는 동작의 글자. 없으면 빈칸
         self._next_repeat = 0.0
+        self._extra_stops = []     # [(보낼 시각, 멈춤 글자)] 연달아 보낼 나머지 멈춤 글자
 
     def update(self, stable, now=0.0):
-        """stable: {동작 이름: 인정된 상태 또는 None}. 지금 보낼 글자를 돌려준다. 없으면 빈칸."""
+        """stable: {동작 이름: 인정된 상태 또는 None}. 지금 보낼 글자들을 문자열로 돌려준다. 없으면 빈칸."""
         current = next((self.letters[s] for s in stable.values() if s in self.letters), "")
-        letter = ""
+        current_stop = self.stops.get(current, "") if current else ""
+        out = ""
+        waiting = []
+        for when, stop in self._extra_stops:
+            if stop == current_stop:
+                continue                      # 그 축이 다시 켜졌다. 남은 멈춤 글자는 버린다
+            if now >= when:
+                out += stop
+            else:
+                waiting.append((when, stop))
+        self._extra_stops = waiting
         if current != self.current:
-            letter = current or self.off_letter
+            if self.stops:
+                previous_stop = self.stops.get(self.current, "")
+                if previous_stop and previous_stop != current_stop:    # 앞 축이 꺼졌다
+                    out += previous_stop
+                    for k in range(1, self.stop_repeats):
+                        self._extra_stops.append((now + k * self.repeat_seconds, previous_stop))
+                out += current
+            else:
+                out += current or self.off_letter
             self._next_repeat = now + self.repeat_seconds
         elif current and self.repeat_seconds > 0 and now >= self._next_repeat:
-            letter = current
+            out += current
             self._next_repeat = now + self.repeat_seconds
         self.current = current
-        return letter
-
+        return out
 
 class FakeLink:
     """가짜 보내기. 포트를 쓸 수 없을 때 화면과 터미널에만 표시한다."""
@@ -214,7 +245,7 @@ class SerialLink:
         if self._final:
             try:
                 port.write(self._final.encode("ascii"))
-                self.sent_count += 1
+                self.sent_count += len(self._final)
                 print(f"[보내기] {self._final} 보냄 → {self.port} (끌 때)")
             except OSError as e:
                 print(f"[보내기] 끌 때 {self._final} 를 보내지 못했습니다: {e}")
@@ -246,8 +277,7 @@ class LetterOutput:
         self._last = None    # (화면에 보여 줄 말, 시각)
 
     def update(self, stable, now):
-        letter = self.trigger.update(stable, now)
-        if letter:
+        for letter in self.trigger.update(stable, now):    # 한꺼번에 두 글자 이상 나올 수 있다(예: 멈춤 글자 + 새 글자)
             sent = self.link.send(letter)
             self._last = (letter if sent else f"{letter} dropped", now)
 
@@ -295,15 +325,21 @@ def make_link(args):
     return SerialLink(args.port, args.baud)
 
 
+LetterPlan = namedtuple("LetterPlan", "letters mode quit_letter shown off_letter stops")
+
+
 def resolve_letters(args):
-    """어떤 동작이 어떤 글자를 보낼지 정한다. 돌려주는 값: ({동작: 글자}, 방식 once/repeat, 끌 때 글자, 화면 표시).
+    """어떤 동작이 어떤 글자를 보낼지 정한다. 돌려주는 값 LetterPlan:
+    letters {동작: 글자}, mode once/repeat, quit_letter 끌 때 글자, shown 화면 표시, off_letter 꺼질 때 한 글자, stops {글자: 멈춤 글자}.
 
     우선순위: --letters(직접 적은 표) > --role(역할 표) > 11/11 방식(--send-on 동작 하나가 --letter-on 글자 하나).
     방식은 --send-mode 를 적으면 그대로, 안 적으면 역할이나 글자 표가 있을 때 repeat, 없으면 once.
-    끌 때 글자는 --letter-quit 를 적으면 그대로, 안 적으면 11/11 방식은 S, 역할이나 글자 표는 X,
-    P1 노트북으로 보내는 쪽(--send-to)은 없음. P2 가 끌 때 X 를 보내면 차의 앞뒤·좌우를 모두 꺼서 P1 의 입력까지 끊기 때문이고,
-    P2 가 끊겨도 차가 0.3초 뒤에 그 입력을 스스로 끄므로 안 보내도 안전하다.
-    (새 약속에서 S 는 「뒤로」라서 끌 때 S 를 보내면 차가 뒤로 간다)
+
+    멈춤 글자(11/20 sunbell 결정: 앞뒤용 X, 좌우용 Z): 방식이 repeat 이고 W A S D 를 쓰면, 안 적었을 때 축마다 멈춤 글자를 보낸다.
+    --letter-off 를 적으면(빈칸 포함) 그 값 그대로 모든 동작에 쓰고 축마다 멈춤 글자는 쓰지 않는다.
+
+    끌 때 글자는 --letter-quit 를 적으면 그대로, 안 적으면 쓰는 축의 멈춤 글자(P1 은 X, P2 는 Z, 둘 다 쓰면 XZ),
+    W A S D 가 아닌 역할은 X, 11/11 방식은 S. (새 약속에서 S 는 「뒤로」라서 끌 때 S 를 보내면 차가 뒤로 간다.)
     """
     if args.letters:
         letters, name = args.letters, "custom"
@@ -312,15 +348,21 @@ def resolve_letters(args):
     else:
         letters, name = {args.send_on: args.letter_on}, ""
     mode = args.send_mode or ("repeat" if name else "once")
+    axes = {l: AXIS_STOP[l] for l in letters.values() if l in AXIS_STOP}
+    if args.letter_off is None:
+        stops, off_letter = (axes if mode == "repeat" else {}), ""
+    else:
+        stops, off_letter = {}, args.letter_off
     if args.letter_quit is not None:
         quit_letter = args.letter_quit
-    elif args.send_to:
-        quit_letter = ""
+    elif axes:
+        quit_letter = "".join(sorted(set(axes.values())))
     else:
         quit_letter = "X" if name else "S"
-    shown = " ".join(filter(None, [name, mode if name else "", "/".join(letters.values()) if name else ""]))
-    return letters, mode, quit_letter, shown
-
+    parts = [name, mode if name else "", "/".join(letters.values()) if name else ""]
+    if stops:
+        parts.append("stop " + "/".join(sorted(set(stops.values()))))
+    return LetterPlan(letters, mode, quit_letter, " ".join(filter(None, parts)), off_letter, stops)
 
 def make_listener(args, link):
     """P1 노트북이면(--listen) P2 가 보낸 W A S D 를 받아 같은 포트로 넘기는 받기를 켠다. 아니면 None."""
@@ -331,7 +373,7 @@ def make_listener(args, link):
     except OSError as error:
         print(f"[받기] 포트 {args.listen} 를 열지 못했습니다. 다른 프로그램이 쓰고 있을 수 있습니다: {error}")
         return None
-    print(f"[받기] P2 노트북의 글자를 UDP 포트 {listener.port} 에서 받아 차로 넘깁니다. W A S D 만 넘기고 나머지는 버립니다.")
+    print(f"[받기] P2 노트북의 글자를 UDP 포트 {listener.port} 에서 받아 차로 넘깁니다. W A S D(가고 서기)와 X Z(멈춤)만 넘기고 나머지는 버립니다.")
     if args.allow_from:
         print(f"[받기] 허락한 주소: {', '.join(sorted(args.allow_from))}")
     else:
@@ -340,8 +382,8 @@ def make_listener(args, link):
 
 
 def make_output(args):
-    letters, mode, quit_letter, shown = resolve_letters(args)
-    repeat = args.repeat_seconds if mode == "repeat" else 0.0
-    trigger = LetterTrigger(letters, args.letter_off, repeat)
+    plan = resolve_letters(args)
+    repeat = args.repeat_seconds if plan.mode == "repeat" else 0.0
+    trigger = LetterTrigger(plan.letters, plan.off_letter, repeat, plan.stops, args.stop_repeats)
     link = make_link(args)
-    return LetterOutput(link, trigger, quit_letter, shown, make_listener(args, link))
+    return LetterOutput(link, trigger, plan.quit_letter, plan.shown, make_listener(args, link))

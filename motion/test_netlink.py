@@ -72,13 +72,14 @@ class ListenerTest(Quiet):
         self.addCleanup(sock.close)
         return sock
 
-    def test_only_w_a_s_d_are_forwarded_to_the_car(self):
+    def test_driving_and_stop_letters_are_forwarded_but_not_the_heartbeat(self):
+        """11/20: 멈춤 글자는 축마다 따로라서(X 앞뒤, Z 좌우) P2 의 Z 도 차로 넘어간다. 살아 있음 신호(H)만 안 넘긴다."""
         listener, forward = self.make()
         sock = self.raw()
-        for letter in b"WASDXH":
+        for letter in b"WASDXZH":
             sock.sendto(bytes([letter]), ("127.0.0.1", listener.port))
-        self.assertTrue(wait_until(lambda: listener.received == 5 and listener.heartbeats == 1))
-        self.assertEqual(forward.letters, ["W", "A", "S", "D"])    # X(끄기)와 H(살아 있음)는 넘기지 않는다
+        self.assertTrue(wait_until(lambda: listener.received == 6 and listener.heartbeats == 1))
+        self.assertEqual(forward.letters, ["W", "A", "S", "D", "X", "Z"])
         self.assertIn("hb ", listener.status_text())
 
     def test_every_accepted_letter_is_answered_and_the_rest_are_not(self):
@@ -160,11 +161,12 @@ class LinkTest(Quiet):
             self.assertTrue(wait_until(lambda: link.state == "NO REPLY"))
         self.assertIn("NO REPLY", link.status_text())
 
-    def test_final_letter_is_sent_on_close_but_x_is_not_forwarded(self):
+    def test_closing_letters_are_sent_one_by_one_and_forwarded(self):
+        """끌 때 글자가 여럿이어도(예: XZ) 한 글자씩 따로 가서 받는 쪽이 받는다. 멈춤 글자라 차로 넘어간다."""
         link, listener, forward = self.pair()
-        link.close("X")
-        self.assertTrue(wait_until(lambda: listener.received >= 1))
-        self.assertEqual(forward.letters, [])
+        link.close("XZ")
+        self.assertTrue(wait_until(lambda: forward.letters == ["X", "Z"]))
+        self.assertEqual(listener.ignored, 0)
 
     def test_a_send_failure_is_dropped_and_reported_once(self):
         messages = []
@@ -195,13 +197,15 @@ class PrintGateTest(unittest.TestCase):
 
 
 class WiringTest(Quiet):
-    def test_p2_with_send_to_has_no_quit_letter_and_repeats(self):
+    def test_p2_with_send_to_repeats_and_stops_the_left_right_axis_only(self):
+        """11/20: P2 는 팔을 내리거나 끌 때 좌우만 끄는 Z 를 보낸다. P1 의 앞뒤 입력은 안 끊는다."""
         args = config.parse_args(["--role", "P2", "--send-to", "172.20.17.8"])
-        letters, mode, quit_letter, shown = output.resolve_letters(args)
-        self.assertEqual((mode, quit_letter), ("repeat", ""))
-        self.assertEqual(letters, {"LEFT_UP": "A", "RIGHT_UP": "D"})
-        asked = config.parse_args(["--role", "P2", "--send-to", "172.20.17.8", "--letter-quit", "X"])
-        self.assertEqual(output.resolve_letters(asked)[2], "X")
+        plan = output.resolve_letters(args)
+        self.assertEqual((plan.mode, plan.quit_letter), ("repeat", "Z"))
+        self.assertEqual(plan.letters, {"LEFT_UP": "A", "RIGHT_UP": "D"})
+        self.assertEqual(plan.stops, {"A": "Z", "D": "Z"})
+        asked = config.parse_args(["--role", "P2", "--send-to", "172.20.17.8", "--letter-quit", ""])
+        self.assertEqual(output.resolve_letters(asked).quit_letter, "")
 
     def test_port_and_send_to_cannot_be_combined(self):
         for bad in (["--port", "COM11", "--send-to", "172.20.17.8"], ["--send-to", "172.20.17.8", "--listen"]):

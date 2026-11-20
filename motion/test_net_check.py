@@ -62,7 +62,7 @@ class SendAndListen(unittest.TestCase):
         with Listener() as listener:
             raw = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             raw.settimeout(0.3)
-            for bad in (b"Z", b"w", b"AB", b"", b"\r"):    # 소문자, 두 글자, 빈 것, 줄바꿈은 모두 버린다
+            for bad in (b"F", b"w", b"AB", b"", b"\r"):    # 다른 글자, 소문자, 두 글자, 빈 것, 줄바꿈은 모두 버린다
                 raw.sendto(bad, ("127.0.0.1", listener.port))
             with self.assertRaises(socket.timeout):
                 raw.recvfrom(64)                              # 버린 것에는 답이 오지 않는다

@@ -4,8 +4,9 @@ P2 노트북(보내는 쪽, UdpLink)  : 포트 대신 P1 노트북의 주소로 
 P1 노트북(받는 쪽, UdpListener): P2 가 보낸 W A S D 를 받아 자기 차 포트(또는 가짜 보내기)로 넘긴다.
 
 - 글자는 한 글자짜리 UDP 편지이다. 한두 장 잃어도 0.15초 뒤에 같은 글자가 또 온다.
-- 받는 쪽은 W A S D X H 한 글자만 받고(답을 보냄) 나머지는 버린다. 그중 차로 넘기는 것은 W A S D 뿐이다.
-  X 는 P2 가 끌 때 보내는 글자일 수 있는데, 차의 앞뒤·좌우를 모두 끄므로 P1 의 입력까지 한 번 끊는다. 그래서 넘기지 않는다.
+- 받는 쪽은 W A S D X Z H 한 글자만 받고(답을 보냄) 나머지는 버린다. 그중 차로 넘기는 것은 H 를 뺀 W A S D X Z 이다.
+  멈춤 글자는 축마다 따로다(11/20 sunbell 결정): X = 앞뒤만 끔, Z = 좌우만 끔. 그래서 P2 가 팔을 내리며 보낸 Z 는
+  P1 의 앞뒤 입력을 끊지 않고 그대로 차로 넘어간다.
   차는 약 0.3초 글자가 없으면 그 입력을 스스로 끄므로, P2 가 끊겨도 차는 P2 의 입력만 알아서 끈다.
 - H 는 「살아 있음」 신호이다. 팔을 안 들고 있어도 연결 상태를 보여 주려고 1초마다 보내고, 차로 넘기지 않는다.
 - 화면에 나오는 글(status_text)은 OpenCV 글꼴이 한글을 못 그려서 영어와 숫자만 쓴다.
@@ -18,8 +19,8 @@ import time
 from collections import deque
 
 DEFAULT_PORT = 5005
-FORWARDED = "WASD"            # P1 이 차로 넘기는 글자
-ACCEPTED = "WASDXH"           # P1 이 받는(답을 보내는) 글자. 그 밖의 것은 버린다
+FORWARDED = "WASDXZ"          # P1 이 차로 넘기는 글자. X = 앞뒤만 끔, Z = 좌우만 끔(11/20 sunbell 결정)
+ACCEPTED = "WASDXZH"          # P1 이 받는(답을 보내는) 글자. 그 밖의 것은 버린다
 HEARTBEAT = "H"
 HEARTBEAT_SECONDS = 1.0       # P2 가 살아 있음 신호를 보내는 간격
 REPLY_TIMEOUT = 1.5           # 이보다 오래 답이 없으면 NO REPLY
@@ -179,8 +180,8 @@ class UdpLink:
         return False
 
     def close(self, final_letter=""):
-        if final_letter:
-            self._send_raw(final_letter, count=True)
+        for letter in final_letter:          # 끌 때 글자가 여럿이어도(예: XZ) 한 글자씩 따로 보낸다. 받는 쪽은 한 글자짜리만 받는다
+            self._send_raw(letter, count=True)
         self._stop.set()
         self._thread.join(1.0)
         self.sock.close()

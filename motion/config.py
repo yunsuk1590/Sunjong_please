@@ -40,8 +40,10 @@ DEFAULTS = {
     "baud": 9600,         # 통신 속도. HC-06 과 아두이노 쪽 약속이 9600
     "send_on": "ARMS_UP", # 이 동작이 켜지는 순간 letter_on 을 보낸다
     "letter_on": "F",     # 앞으로
-    "letter_off": "",     # 동작이 꺼지는 순간 보낼 글자. 빈칸이면 보내지 않는다(차가 스스로 멈춘다)
-    "letter_quit": None,  # 프로그램을 끌 때 한 번 보낸다. 안 적으면 11/11 방식(역할 없음)은 S(멈춤), 역할(P1/P2)은 X(11/19)
+    "letter_off": None,   # 동작이 꺼지는 순간 보낼 글자. 안 적으면 W A S D 는 축마다 멈춤 글자(앞뒤 X, 좌우 Z, 11/20 sunbell),
+                          # 11/11 방식은 보내지 않는다(차가 스스로 멈춘다). 빈칸("")을 적으면 일부러 보내지 않는다. 한 글자를 적으면 모든 동작에 그 글자
+    "stop_repeats": 3,    # 멈춤 글자를 이 횟수만큼 연달아 보낸다(처음은 바로, 나머지는 반복 간격마다). 글자 하나를 잃어도 서게 하려는 것(아두이노 세션 제안, 11/20)
+    "letter_quit": None,  # 프로그램을 끌 때 보낸다. 안 적으면 11/11 방식은 S(멈춤), 역할은 자기 축의 멈춤 글자(P1 X, P2 Z), 글자 표는 쓴 축마다(11/20)
                           # 11/19 협동 레이싱에서 S 는 「뒤로」라서 역할을 고르면 S 를 끌 때 보내지 않는다
     # 협동 레이싱(11/19 sunbell 결정). 노트북 한 대에 사람 한 명이 한 역할을 맡는다
     "role": "",           # P1 = 두 팔 들기 W(앞), T자 S(뒤) / P2 = 왼팔 A(왼쪽), 오른팔 D(오른쪽). 빈칸이면 11/11 방식
@@ -57,6 +59,9 @@ ROLE_LETTERS = {
     "P1": {"ARMS_UP": "W", "T_POSE": "S"},
     "P2": {"LEFT_UP": "A", "RIGHT_UP": "D"},
 }
+# 축마다 멈춤 글자(11/20 sunbell 결정): X = 앞뒤(W, S)만 끔, Z = 좌우(A, D)만 끔. 한 사람이 멈춰도 다른 사람의 입력은 안 끊긴다
+# 차 코드(car_race)가 X/Z 를 나눠 받기 전에는 차에서 Z 가 무시될 수 있다(아두이노 세션이 올린 뒤에 차 시험)
+AXIS_STOP = {"W": "X", "S": "X", "A": "Z", "D": "Z"}
 ROLE_CHOICES = ["P1", "P2"]
 SEND_MODE_CHOICES = ["once", "repeat"]
 
@@ -151,6 +156,8 @@ def parse_args(argv=None):
                         help="once = 켜지는 순간 한 번 / repeat = 켜져 있는 동안 반복. 안 적으면 역할이나 글자 표가 있을 때 repeat")
     parser.add_argument("--repeat-seconds", type=float, default=DEFAULTS["repeat_seconds"],
                         help="repeat 일 때 같은 글자를 다시 보내는 간격(초)")
+    parser.add_argument("--stop-repeats", type=int, default=DEFAULTS["stop_repeats"], metavar="N",
+                        help="팔을 내릴 때 멈춤 글자(X/Z)를 연달아 보내는 횟수. 글자 하나를 잃어도 서게 함")
     parser.add_argument("--listen", type=int, nargs="?", const=DEFAULTS["listen_port"], default=None, metavar="PORT",
                         help="P1 노트북: P2 노트북이 UDP 로 보낸 W A S D 를 받아 차로 넘김. 포트를 안 적으면 5005")
     parser.add_argument("--send-to", default="", metavar="HOST[:PORT]",
@@ -161,6 +168,8 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     if args.repeat_seconds <= 0:
         parser.error("--repeat-seconds 는 0보다 커야 합니다")
+    if args.stop_repeats < 1:
+        parser.error("--stop-repeats 는 1 이상이어야 합니다")
     if args.send_to and args.port:
         parser.error("--port 와 --send-to 는 같이 쓸 수 없습니다. 차와 연결된 노트북(P1)은 --port, P2 노트북은 --send-to 를 씁니다")
     if args.send_to and args.listen is not None:
