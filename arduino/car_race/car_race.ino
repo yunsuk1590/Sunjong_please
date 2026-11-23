@@ -34,16 +34,22 @@ const uint8_t DRIVE_SPEED       = 255;       // 앞/뒤로만 갈 때 (2026-11-1
 //  3: 255 / 110   4: 255 / 70   5: 200 / 95 (바깥도 약하게)   6: 255 / 0 (안쪽 바퀴를 놓음, 가장 좁게)
 //  7: 255 / 35 (2026-11-23 추가: 4번과 6번 사이. 왼쪽 커브가 오른쪽보다 덜 돌아서 맞춰 보려고)
 //  8: 255 / 90 (2026-11-23 추가: 3번과 4번 사이. 왼쪽 7번에 비해 오른쪽 3번이 덜 돌아서 맞춰 보려고)
-const uint8_t CURVE_COUNT = 8;
-const uint8_t CURVE_OUTER[CURVE_COUNT] = {255, 255, 255, 255, 200, 255, 255, 255};
-const uint8_t CURVE_INNER[CURVE_COUNT] = {190, 150, 110,  70,  95,   0,  35,  90};
-// 켜졌을 때 쓰는 짝 번호(1~8). 왼쪽 커브(W+A)와 오른쪽 커브(W+D)를 따로 정합니다. 이 값만 바꿔서 올리면 기본값이 바뀝니다.
+//  9: 255 / 165 (2026-11-23 추가: 2번과 1번 사이. 오른쪽 커브 지름을 왼쪽 8번(약 66 cm)에 맞추려고.
+//     같은 날 먼저 넣었던 255/55 는 지름 약 30 cm 로 너무 좁아 이 자리를 바꿈)
+const uint8_t CURVE_COUNT = 9;
+const uint8_t CURVE_OUTER[CURVE_COUNT] = {255, 255, 255, 255, 200, 255, 255, 255, 255};
+const uint8_t CURVE_INNER[CURVE_COUNT] = {190, 150, 110,  70,  95,   0,  35,  90, 165};
+// 켜졌을 때 쓰는 짝 번호(1~9). 왼쪽 커브(W+A)와 오른쪽 커브(W+D)를 따로 정합니다. 이 값만 바꿔서 올리면 기본값이 바뀝니다.
 // 2026-11-23 sunbell 결정: 같은 번호로는 왼쪽이 덜 돌아서(왼쪽 4번 약 반 바퀴, 오른쪽 3번 약 1바퀴) 따로 정함.
 // 왼쪽 7번(안쪽 35)은 3초에 약 1바퀴, 오른쪽은 3번(안쪽 110)이 한 바퀴가 못 돼서 8번(안쪽 90, 약 0.8~0.9바퀴)으로 맞춤
-const uint8_t CURVE_DEFAULT_LEFT  = 7;
-const uint8_t CURVE_DEFAULT_RIGHT = 8;
+// 2026-11-23 저녁: 7/8번은 지름이 약 30~35 cm 로 거의 선회 수준이라(노트북 2대 시험) 넓힘.
+// 6초 커브 지름(줄자, 테이프 두 개, 블루투스, 직진 보정 100/100): 왼쪽 3번(안쪽 110) 약 62 cm, 오른쪽 2번(안쪽 150) 약 63 cm. 길 폭 약 60 cm.
+// (직진 보정이 오른쪽 94 → 100 으로 바뀌어 왼쪽 8번이 66 → 44 cm 로 좁아져 3번으로 바꿈. 오른쪽 9번(안쪽 165)은 65·90·115 cm 로 흔들려서 뺐음)
+const uint8_t CURVE_DEFAULT_LEFT  = 3;
+const uint8_t CURVE_DEFAULT_RIGHT = 2;
 const uint8_t SPIN_SPEED        = 190;       // 제자리 돌기 속도. 255 로 0.8초 누르면 약 270도 돌아 너무 빨랐음(2026-11-19 시험)
-const uint8_t RIGHT_SCALE_PERCENT = 94;      // 오른쪽 바퀴 값에 곱하는 비율(%). 직진이 살짝 왼쪽으로 휘어서 오른쪽을 약하게(2026-11-19 시험). 100 = 보정 없음
+const uint8_t RIGHT_SCALE_PERCENT = 100;     // 오른쪽 바퀴 값에 곱하는 비율(%). 100 = 보정 없음. (11/19 에는 직진이 살짝 왼쪽으로 휘어 94 로 줄였으나, 11/23 저녁에는 3초에 오른쪽으로 61 cm 쏠려 반대가 됨)
+const uint8_t LEFT_SCALE_PERCENT  = 100;     // 왼쪽 바퀴 값에 곱하는 비율(%). 100 = 보정 없음. 2026-11-23 저녁 3초 직진 쏠림(오른쪽 + / 왼쪽 -): 오른쪽 94·왼쪽 100 → +61 cm(블루투스), 오른쪽 100·왼쪽 86 → -70 cm(USB), 오른쪽 100·왼쪽 96 → -45 cm(USB)·-40 cm(블루투스). 두 점 사이 직선으로 보면 보정 없음(100/100) 근처에서 0 이 되어 보정을 모두 뺌 — 시험으로 확인
 const uint8_t KICK_SPEED        = 255;       // 멈춘 데서 출발하는 순간만 세게 밀 때의 속도
 const unsigned long KICK_MS     = 150;       // 세게 미는 시간(ms)
 
@@ -228,6 +234,10 @@ void applyWheels() {
   if (right != 0) {
     int scaled = (int)((long)right * RIGHT_SCALE_PERCENT / 100);
     right = (scaled == 0) ? ((right > 0) ? 1 : -1) : scaled;
+  }
+  if (left != 0) {
+    int scaled = (int)((long)left * LEFT_SCALE_PERCENT / 100);
+    left = (scaled == 0) ? ((left > 0) ? 1 : -1) : scaled;
   }
 
   if (left != lastLeft || right != lastRight) {
