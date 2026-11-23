@@ -35,7 +35,7 @@ https://github.com/yunsuk1590/Sunjong_please/blob/sunbell/team/docs/mac-dev-setu
 |---|---|---|
 | 맥 | Apple 칩(M1 이후), macOS 13 이상 | 인텔 맥이나 macOS 12 이하에는 지금 몸 동작 부품이 설치되지 않습니다 |
 | git | 설치됨, 깃허브에 push할 수 있음 | push 비밀번호 자리에는 토큰(Personal access token)을 넣습니다 |
-| 파이썬 | **3.11**(권장 3.11.9, python.org의 macOS universal2 설치 프로그램) | 3.12 이상은 안 됩니다. sunbell 노트북은 3.11.6으로 확인 |
+| 파이썬 | **3.11**(권장 3.11.9, python.org의 macOS universal2 설치 프로그램. Homebrew `python@3.11`도 됨) | 3.12 이상은 안 됩니다. sunbell 노트북은 3.11.6, yunsuk1590 맥은 Homebrew 3.11.18로 확인(11/23, 시험 74개 통과) |
 | Arduino IDE | **2.3.10**(Apple Silicon용) | sunbell이 쓰는 판(차 코드 README 「3」) |
 | 보드 설정 | Arduino AVR Boards **1.8.8**, 보드 「Arduino Uno」(`arduino:avr:uno`) | 같음 |
 | 모터 라이브러리 | **Adafruit Motor Shield library 1.0.1**(V1, 코드에서는 `AFMotor`). 「V2」가 아닌 것 | 같음. 레포에는 넣지 않음 |
@@ -79,7 +79,7 @@ https://github.com/yunsuk1590/Sunjong_please/blob/sunbell/team/docs/mac-dev-setu
 ### 3-2 · 파이썬 3.11.9
 - <https://www.python.org/downloads/release/python-3119/> 의 「macOS 64-bit universal2 installer」를 받아 설치합니다. yunsuk1590이 설치 창을 진행합니다.
 - 설치 뒤 `python3.11 --version`으로 확인합니다.
-- Homebrew가 이미 있으면 `brew install python@3.11`도 됩니다(`setup.command`가 찾습니다). 둘 중 하나만 합니다.
+- Homebrew가 이미 있으면 `brew install python@3.11`도 됩니다(`setup.command`가 찾습니다). 둘 중 하나만 합니다. yunsuk1590 맥은 Homebrew 3.11.18로 문제없이 됐고, 그대로 쓰기로 했습니다(11/23, Claude 제안 sunbell 확정).
 - 인증서 설치(`Install Certificates.command`)는 하지 않아도 됩니다(몸 동작 인계 문서).
 
 ### 3-3 · Arduino IDE 2.3.10
@@ -180,6 +180,13 @@ git worktree add -b yunsuk1590/motion ../Sunjong_motion origin/sunbell/motion
 | 막힌 것, sunbell과 정할 것 | |
 
 ## 8 · 막히면
+
+**맥에서 실제로 겪은 것 (11/23, yunsuk1590 맥 M1)**
+- **바탕화면이 iCloud와 동기화되면** 폴더 만들기가 한 번 실패할 수 있습니다. 다시 하면 됩니다. `.venv`처럼 큰 폴더는 iCloud 밖에 두는 것이 좋습니다.
+- **Claude 앱 안의 터미널에서 `run.command`를 실행하면 카메라 권한이 「터미널」에 잡히지 않습니다.** 맥의 **「터미널」 앱**을 따로 열어서 실행합니다.
+- 카메라를 **허용한 직후의 첫 실행은 실패**할 수 있습니다. 한 번 더 실행하면 됩니다.
+- 첫 실행에서 동작이 안 잡혔다가 다시 켜니 잡힌 일이 한 번 있었습니다(원인 모름).
+
 
 | 증상 | 해 볼 것 |
 |---|---|
