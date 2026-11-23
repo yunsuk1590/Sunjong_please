@@ -49,8 +49,8 @@ const unsigned long KICK_MS     = 150;       // 세게 미는 시간(ms)
 
 // ===== 바꿀 수 있는 값: 초음파 (car_ultrasonic 과 같음) =====
 // 앞이 막히면 앞으로 안 가는 기능을 켜고 끕니다. false 면 거리는 재서 로그(「앞이 막힘」)만 남기고 차는 막지 않습니다.
-// 2026-11-23 sunbell 결정: 커브 시험 중에는 벽이 아닌 물건에도 걸려 시험이 끊겨서 잠시 끔. 시험이 끝나면 true 로 되돌려 올립니다.
-const bool          FORWARD_BLOCK_ENABLED = false;
+// 2026-11-23 sunbell 결정: 커브 시험 중에는 벽이 아닌 물건에도 걸려 시험이 끊겨서 잠시 끔(false). 커브를 정한 뒤 초음파 바닥 시험을 하려고 같은 날 true 로 되돌림.
+const bool          FORWARD_BLOCK_ENABLED = true;
 const uint8_t       STOP_CM          = 20;     // 앞이 이 거리(cm) 안이면 「막힘」
 const uint8_t       RESUME_MARGIN_CM  = 10;     // 막힌 뒤에는 STOP_CM + 이 값보다 멀어져야 「열림」
 const unsigned long SONAR_INTERVAL_MS = 60;     // 거리를 재는 간격(ms)
@@ -165,6 +165,12 @@ void updateSonar() {
 
   uint8_t limitCm = blocked ? (STOP_CM + RESUME_MARGIN_CM) : STOP_CM;
   bool isNear = (lastEchoUs != 0) && (lastEchoUs <= (unsigned long)limitCm * US_PER_CM);
+  // 이미 막힌 상태에서 「못 잼」이 나오면 열림으로 보지 않고 막힌 채로 둡니다.
+  // 2026-11-23 시험: 물건이 비스듬하거나 아주 가까우면 소리가 안 돌아와 「못 잼」이 나오는데, 그걸 「열림」으로 봐서 차가 다시 앞으로 가 물건에 닿음.
+  // 막힌 뒤에는 S 로 뒤로 빠지거나 A/D 로 돌아서 거리가 잡히면 열립니다.
+  if (blocked && lastEchoUs == 0) {
+    isNear = true;
+  }
 
   if (isNear == blocked) {
     confirmCount = 0;
