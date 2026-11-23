@@ -58,7 +58,9 @@ git show origin/sunbell/motion:motion/README.md
 - `arduino/car_backup/README.md`의 「6-1」: sunbell 차로 같은 담당자 코드를 시험한 결과(USB, 블루투스, 바닥)
 - 자기 기록은 `yunsuk1590/arduino`의 `arduino/README.md`입니다.
 
-### yunsuk1590이 지금 할 일 (11/23 sunbell)
+### yunsuk1590이 지금 할 일 (11/23 sunbell, 저녁 갱신)
+- **맥 P2 시험은 11/23 저녁 sunbell과 함께 했고 잘 됐습니다**(sunbell). 아래 3번의 결과 보고를 올리는 것이 남았습니다.
+- **다음(11/24)**: 예비 차 맞추기에 **yunsuk1590 차**가 필요합니다(`car_race` 올리기, 이름 `IEUMCAR1`). 언제 차를 넘길지 sunbell과 맞춥니다. 남은 할 일과 날짜는 [팀 상태판](team-status.md)의 「날짜별 일정」에 있습니다.
 - **맥 개발 환경은 끝났습니다**(11/23 yunsuk1590 보고: 맥 M1, `yunsuk1590/arduino`와 `yunsuk1590/motion` 두 폴더, `car_race` 컴파일 7,370바이트, 몸 동작 setup 성공·시험 74개 통과·네 동작 잡힘, 초당 약 28.8장).
 - **할 일: 맥을 P2로 노트북 2대 + 차 시험**([시험 안내](test-guide.md) 「6-2」의 「P2를 맥으로 할 때」). P1은 sunbell의 my(차와 블루투스 `COM11`)이고, 같은 와이파이에서 만나야 하므로 **sunbell과 시간을 맞춥니다.**
   1. 혼자 미리: 맥 「터미널」 앱에서 `./run.command --role P2`(주소 없이)를 켜서, 왼팔 → `A`, 오른팔 → `D`, 팔을 내리면 `Z`가 터미널에 `[가짜 보내기]`로 나오는지 봅니다.
