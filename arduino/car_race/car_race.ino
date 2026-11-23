@@ -28,21 +28,30 @@ const char LETTER_STOP_TURN  = 'Z';  // 좌우 입력만 끔 (2026-11-20 sunbell
 // ===== 바꿀 수 있는 값 (모두 【임시】, 바닥 시험으로 정함) =====
 const unsigned long INPUT_TIMEOUT_MS = 300;  // 글자가 이 시간 안에 다시 안 오면 그 입력을 끔
 const uint8_t DRIVE_SPEED       = 255;       // 앞/뒤로만 갈 때 (2026-11-11 sunbell 결정: AA 건전지에서 200은 출발 못 함)
-// 휘며 갈 때(W+A, W+D)의 모양: 바깥 바퀴와 안쪽 바퀴 속도의 짝 여섯 가지. 시험 중에는 글자 1~6 으로 바꿔 볼 수 있습니다(차를 다시 안 올려도 됨).
+// 휘며 갈 때(W+A, W+D)의 모양: 바깥 바퀴와 안쪽 바퀴 속도의 짝 여덟 가지. 시험 중에는 글자 1~8 로 바꿔 볼 수 있습니다(차를 다시 안 올려도 됨).
 // 안쪽이 바깥보다 많이 느릴수록 좁게 돕니다. 짝 번호는 1부터 셉니다.
 //  1: 바깥 255 / 안쪽 190 (넓게, 2026-11-19 시험: 거의 직진)    2: 255 / 150 (지금 값, 시험 중)
 //  3: 255 / 110   4: 255 / 70   5: 200 / 95 (바깥도 약하게)   6: 255 / 0 (안쪽 바퀴를 놓음, 가장 좁게)
-const uint8_t CURVE_COUNT = 6;
-const uint8_t CURVE_OUTER[CURVE_COUNT] = {255, 255, 255, 255, 200, 255};
-const uint8_t CURVE_INNER[CURVE_COUNT] = {190, 150, 110,  70,  95,   0};
-const uint8_t CURVE_DEFAULT = 2;             // 켜졌을 때 쓰는 짝 번호(1~6). 이 값만 바꿔서 올리면 기본값이 바뀝니다
+//  7: 255 / 35 (2026-11-23 추가: 4번과 6번 사이. 왼쪽 커브가 오른쪽보다 덜 돌아서 맞춰 보려고)
+//  8: 255 / 90 (2026-11-23 추가: 3번과 4번 사이. 왼쪽 7번에 비해 오른쪽 3번이 덜 돌아서 맞춰 보려고)
+const uint8_t CURVE_COUNT = 8;
+const uint8_t CURVE_OUTER[CURVE_COUNT] = {255, 255, 255, 255, 200, 255, 255, 255};
+const uint8_t CURVE_INNER[CURVE_COUNT] = {190, 150, 110,  70,  95,   0,  35,  90};
+// 켜졌을 때 쓰는 짝 번호(1~8). 왼쪽 커브(W+A)와 오른쪽 커브(W+D)를 따로 정합니다. 이 값만 바꿔서 올리면 기본값이 바뀝니다.
+// 2026-11-23 sunbell 결정: 같은 번호로는 왼쪽이 덜 돌아서(왼쪽 4번 약 반 바퀴, 오른쪽 3번 약 1바퀴) 따로 정함.
+// 왼쪽 7번(안쪽 35)은 3초에 약 1바퀴, 오른쪽은 3번(안쪽 110)이 한 바퀴가 못 돼서 8번(안쪽 90, 약 0.8~0.9바퀴)으로 맞춤
+const uint8_t CURVE_DEFAULT_LEFT  = 7;
+const uint8_t CURVE_DEFAULT_RIGHT = 8;
 const uint8_t SPIN_SPEED        = 190;       // 제자리 돌기 속도. 255 로 0.8초 누르면 약 270도 돌아 너무 빨랐음(2026-11-19 시험)
 const uint8_t RIGHT_SCALE_PERCENT = 94;      // 오른쪽 바퀴 값에 곱하는 비율(%). 직진이 살짝 왼쪽으로 휘어서 오른쪽을 약하게(2026-11-19 시험). 100 = 보정 없음
 const uint8_t KICK_SPEED        = 255;       // 멈춘 데서 출발하는 순간만 세게 밀 때의 속도
 const unsigned long KICK_MS     = 150;       // 세게 미는 시간(ms)
 
 // ===== 바꿀 수 있는 값: 초음파 (car_ultrasonic 과 같음) =====
-const uint8_t       STOP_CM           = 20;     // 앞이 이 거리(cm) 안이면 「막힘」
+// 앞이 막히면 앞으로 안 가는 기능을 켜고 끕니다. false 면 거리는 재서 로그(「앞이 막힘」)만 남기고 차는 막지 않습니다.
+// 2026-11-23 sunbell 결정: 커브 시험 중에는 벽이 아닌 물건에도 걸려 시험이 끊겨서 잠시 끔. 시험이 끝나면 true 로 되돌려 올립니다.
+const bool          FORWARD_BLOCK_ENABLED = false;
+const uint8_t       STOP_CM          = 20;     // 앞이 이 거리(cm) 안이면 「막힘」
 const uint8_t       RESUME_MARGIN_CM  = 10;     // 막힌 뒤에는 STOP_CM + 이 값보다 멀어져야 「열림」
 const unsigned long SONAR_INTERVAL_MS = 60;     // 거리를 재는 간격(ms)
 const unsigned long ECHO_TIMEOUT_US   = 25000;  // 소리가 이 시간 안에 안 돌아오면 「못 잼」(앞이 비었다고 봄)
@@ -68,7 +77,8 @@ AF_DCMotor rightWheel(4);  // 오른쪽 바퀴 = 쉴드 M4
 SoftwareSerial bluetooth(BT_RX_PIN, BT_TX_PIN);
 
 // ===== 지금 상태 =====
-uint8_t curveIndex = CURVE_DEFAULT - 1;   // 지금 쓰는 커브 짝 (0부터 셈)
+uint8_t curveLeft  = CURVE_DEFAULT_LEFT - 1;    // 왼쪽 커브(W+A)에 쓰는 짝 (0부터 셈)
+uint8_t curveRight = CURVE_DEFAULT_RIGHT - 1;   // 오른쪽 커브(W+D)에 쓰는 짝 (0부터 셈)
 int8_t driveDir = 0;               // 앞뒤 입력: +1 앞, -1 뒤, 0 없음
 int8_t turnDir  = 0;               // 좌우 입력: -1 왼, +1 오른, 0 없음
 unsigned long driveAt = 0;         // 앞뒤 글자를 마지막으로 받은 때(millis)
@@ -89,6 +99,8 @@ void setup() {
   pinMode(ECHO_PIN, INPUT);
   releaseWheels();
   Serial.println(F("car_race 시작: 멈춤 상태. W 앞, S 뒤, A 왼, D 오른, X 앞뒤 끔, Z 좌우 끔"));
+  Serial.println(FORWARD_BLOCK_ENABLED ? F("앞 막힘 기능: 켜짐 (앞이 막히면 앞으로 안 감)")
+                                       : F("앞 막힘 기능: 꺼짐 (시험용. 거리만 재서 로그로 남김)"));
 }
 
 void loop() {
@@ -128,11 +140,11 @@ void handleLetter(int letter, const __FlashStringHelper *source) {
       Serial.print('['); Serial.print(source); Serial.println(F("] Z : 좌우 끔"));
       break;
     default:
-      if (letter >= '1' && letter < '1' + CURVE_COUNT) {   // 시험용: 커브 모양 바꾸기
-        curveIndex = letter - '1';
+      if (letter >= '1' && letter < '1' + CURVE_COUNT) {   // 시험용: 커브 모양 바꾸기 (왼쪽·오른쪽 둘 다 이 번호로 바뀜)
+        curveLeft = curveRight = letter - '1';
         Serial.print('['); Serial.print(source); Serial.print(F("] 커브 ")); Serial.print((char)letter);
-        Serial.print(F(": 바깥 ")); Serial.print(CURVE_OUTER[curveIndex]);
-        Serial.print(F(" / 안쪽 ")); Serial.println(CURVE_INNER[curveIndex]);
+        Serial.print(F(": 바깥 ")); Serial.print(CURVE_OUTER[curveLeft]);
+        Serial.print(F(" / 안쪽 ")); Serial.println(CURVE_INNER[curveLeft]);
         break;
       }
       Serial.print('['); Serial.print(source); Serial.print(F("] ")); Serial.print((char)letter);
@@ -179,7 +191,7 @@ unsigned long readEchoUs() {
 void applyWheels() {
   int8_t drive = driveDir;
   int8_t turn = turnDir;
-  if (drive > 0 && blocked) {
+  if (FORWARD_BLOCK_ENABLED && drive > 0 && blocked) {
     drive = 0;  // 앞이 막혀 있으면 앞으로는 안 감 (뒤로 가기와 돌기는 허용)
   }
 
@@ -188,8 +200,9 @@ void applyWheels() {
   if (drive != 0 && turn == 0) {                     // 곧게 앞/뒤
     left = right = drive * DRIVE_SPEED;
   } else if (drive != 0) {                           // 휘며 앞/뒤: 가려는 쪽 안쪽 바퀴를 느리게
-    int outer = drive * CURVE_OUTER[curveIndex];
-    int inner = drive * CURVE_INNER[curveIndex];
+    uint8_t idx = (turn < 0) ? curveLeft : curveRight;   // 왼쪽 커브와 오른쪽 커브는 짝 번호를 따로 씀
+    int outer = drive * CURVE_OUTER[idx];
+    int inner = drive * CURVE_INNER[idx];
     if (turn < 0) { left = inner; right = outer; } else { left = outer; right = inner; }
   } else if (turn != 0) {                            // 제자리 돌기
     if (turn < 0) { left = -SPIN_SPEED; right = SPIN_SPEED; } else { left = SPIN_SPEED; right = -SPIN_SPEED; }
