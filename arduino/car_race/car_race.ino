@@ -56,7 +56,8 @@ const unsigned long KICK_MS     = 150;       // 세게 미는 시간(ms)
 // ===== 바꿀 수 있는 값: 초음파 (car_ultrasonic 과 같음) =====
 // 앞이 막히면 앞으로 안 가는 기능을 켜고 끕니다. false 면 거리는 재서 로그(「앞이 막힘」)만 남기고 차는 막지 않습니다.
 // 2026-11-23 sunbell 결정: 커브 시험 중에는 벽이 아닌 물건에도 걸려 시험이 끊겨서 잠시 끔(false). 커브를 정한 뒤 초음파 바닥 시험을 하려고 같은 날 true 로 되돌림.
-const bool          FORWARD_BLOCK_ENABLED = true;
+// 2026-11-26 sunbell 결정: 「앞 막힘 기능은 꺼 두는 걸로」 — 이음제에서는 끔(false). 거리는 계속 재서 로그로 남김.
+const bool          FORWARD_BLOCK_ENABLED = false;
 const uint8_t       STOP_CM          = 20;     // 앞이 이 거리(cm) 안이면 「막힘」
 const uint8_t       RESUME_MARGIN_CM  = 10;     // 막힌 뒤에는 STOP_CM + 이 값보다 멀어져야 「열림」
 const unsigned long SONAR_INTERVAL_MS = 60;     // 거리를 재는 간격(ms)
@@ -106,7 +107,7 @@ void setup() {
   releaseWheels();
   Serial.println(F("car_race 시작: 멈춤 상태. W 앞, S 뒤, A 왼, D 오른, X 앞뒤 끔, Z 좌우 끔"));
   Serial.println(FORWARD_BLOCK_ENABLED ? F("앞 막힘 기능: 켜짐 (앞이 막히면 앞으로 안 감)")
-                                       : F("앞 막힘 기능: 꺼짐 (시험용. 거리만 재서 로그로 남김)"));
+                                       : F("앞 막힘 기능: 꺼짐 (거리만 재서 로그로 남김)"));
 }
 
 void loop() {
