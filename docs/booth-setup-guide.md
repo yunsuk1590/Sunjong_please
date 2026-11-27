@@ -39,7 +39,7 @@
 
 | 노트북 | `motion` 폴더 위치 | 메인 차 `IEUMCAR2` COM | 예비 차 `IEUMCAR1` COM | USB 웹캠 번호 | 맡을 수 있는 역할 |
 |---|---|---|---|---|---|
-| 노트북1(test1) | `C:\Users\user\Desktop\ieum_2026\Sunjong_please-sunbell-motion\motion` | `COM3` | ⚠ 아직 짝 안 맺음 | `1` | P1, P2 |
+| 노트북1(test1) | `C:\Users\user\Desktop\ieum_2026\Sunjong_please-sunbell-motion\motion` | `COM3` | `COM5` | `1` | P1, P2 |
 | 노트북2(test2) | `C:\Users\user\Desktop\ieum_2026\Sunjong_please-sunbell-motion\motion` | `COM6` | `COM4` | `1` | P1, P2 |
 | my(sunbell 노트북) | `D:\Project\ieum_2026\Sunjong_please\motion` | `COM11` | `COM13` | `1` | P1, P2 |
 | 맥(yunsuk1590) | ⚠ (확인해 적기) | — | — | — | **P2만** |
@@ -254,7 +254,6 @@ ipconfig
 | **P1 노트북이 바뀜** | P2도 **다시 켭니다.** P2가 보낼 주소(`P1주소`)가 바뀌기 때문입니다. 새 P1 노트북 주소는 4단계 방법으로 봅니다 |
 | **P2 노트북이 바뀜** | P1을 끄고, `P2주소` 자리에 새 P2 노트북 주소를 넣어 다시 켭니다. 그다음 새 P2 노트북을 켭니다 |
 | **메인 차가 고장 남** | 메인 차를 끄고 예비 차를 켭니다. P1을 끄고, `차COM` 자리를 **예비 차 번호**(0-3 표)로 바꿔 다시 켭니다. P2는 그대로 둡니다 |
-| 예비 차 번호가 ⚠(짝 없음)인 노트북이 P1일 때 | 예비 차와 짝이 있는 노트북(예: 노트북2)이 P1을 맡게 역할을 바꿉니다(첫 줄 규칙). 시간이 있으면 부록 A-2로 짝을 맺어도 됩니다 |
 | **노트북이 한 대만 남음** | 한 사람이 네 동작을 모두 합니다(커브는 안 됨): `.\run.bat --port 차COM --letters ARMS_UP=W,T_POSE=S,LEFT_UP=A,RIGHT_UP=D` |
 
 - 역할을 바꿔도 **P1 노트북은 왼쪽, P2 노트북은 오른쪽**에 둡니다(0-1).
